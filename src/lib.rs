@@ -71,10 +71,11 @@ mod tests {
     fn select() {
         let mut qb = QueryBuilder::new();
 
-        qb.select(Some(&["column"]))
-            .from("my_tbl")
-            .and_where("my_table.col1", "=", "my text".value())
-            .or_where("my_table.col1", "=", "my 2".value());
+        qb.select(Some(&["column"])).from("my_tbl").or_where(
+            "my_table.col1",
+            "in",
+            vec!["my".value(), "array".value(), "value".value()],
+        );
 
         let s = dialect::postgres::Postgres::init().build_sql(&qb);
 

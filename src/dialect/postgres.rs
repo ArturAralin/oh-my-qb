@@ -258,10 +258,25 @@ impl<'a> Postgres<'a> {
 
                 self.sql.push_str(col.as_str());
             }
-            Arg::Value(v) => {
-                if let ArgValue::Binding((start, end)) = v {
-                    for (_, binding_idx) in ((*start)..(*end)).enumerate() {
+            Arg::Value(arg_value) => {
+                if let ArgValue::Binding((start, end)) = arg_value {
+                    let count = end - start;
+
+                    if count > 1 {
+                        self.sql.push('(');
+                    }
+
+                    for (idx, binding_idx) in (*start..*end).enumerate() {
+                        if idx > 0 && count > 1 {
+                            self.sql.push(',');
+                            self.sql.push(' ');
+                        }
+
                         self.sql.push_str(format!("${}", binding_idx).as_str())
+                    }
+
+                    if count > 1 {
+                        self.sql.push(')');
                     }
                 }
             }
