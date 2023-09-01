@@ -1,6 +1,5 @@
+use super::value::Value;
 use std::{borrow::Cow, vec};
-
-use crate::value::Value;
 
 #[derive(Debug)]
 pub struct Column<'a>(pub Cow<'a, str>);

@@ -1,6 +1,5 @@
+use super::value::Value;
 use std::{cell::RefCell, rc::Rc};
-
-use crate::value::Value;
 
 pub trait Row<'a> {
     fn columns(&self) -> &'static [&'static str];

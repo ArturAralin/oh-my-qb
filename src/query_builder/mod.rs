@@ -1,7 +1,15 @@
-use crate::row::{Row, RowBuilder};
-use crate::where_clause::Condition;
-use crate::{value::Value, where_clause::Conditions};
+mod conditions;
+mod qb_arg;
+mod row;
+mod value;
+mod where_clause;
+
+pub use conditions::*;
+pub use qb_arg::*;
+pub use row::*;
 use std::{borrow::Cow, cell::RefCell, rc::Rc};
+pub use value::*;
+pub use where_clause::*;
 
 #[derive(Default)]
 pub struct QueryBuilder<'a> {
@@ -143,7 +151,7 @@ impl<'a> QueryBuilder<'a> {
 }
 
 impl<'a> Conditions<'a> for QueryBuilder<'a> {
-    fn push_cond(&mut self, cond: Condition<'a>) {
+    fn push_cond(&mut self, cond: WhereCondition<'a>) {
         match &mut self.query {
             Query::Select(query) => query.where_clause.push(cond),
             Query::Update(query) => query.where_clause.push(cond),
@@ -170,7 +178,7 @@ impl<'a> Conditions<'a> for QueryBuilder<'a> {
 pub struct SelectQuery<'a> {
     pub columns: Option<Vec<Cow<'a, str>>>,
     pub table: Option<Cow<'a, str>>,
-    pub where_clause: Vec<Condition<'a>>,
+    pub where_clause: Vec<WhereCondition<'a>>,
 }
 
 #[derive(Debug)]
@@ -184,13 +192,13 @@ pub struct InsertQuery<'a> {
 pub struct UpdateQuery<'a> {
     pub table: Option<Cow<'a, str>>,
     pub columns: Vec<(Cow<'a, str>, usize)>,
-    pub where_clause: Vec<Condition<'a>>,
+    pub where_clause: Vec<WhereCondition<'a>>,
 }
 
 #[derive(Debug)]
 pub struct DeleteQuery<'a> {
     pub table: Option<Cow<'a, str>>,
-    pub where_clause: Vec<Condition<'a>>,
+    pub where_clause: Vec<WhereCondition<'a>>,
 }
 
 #[derive(Debug)]

@@ -1,27 +1,12 @@
-mod postgres;
-mod qb_arg;
+mod dialect;
 mod query_builder;
-mod row;
-mod value;
-mod where_clause;
-use std::fmt::Debug;
-use value::Value;
 
 pub use query_builder::QueryBuilder;
 
-#[derive(Debug)]
-pub struct Sql<'a> {
-    pub sql: String,
-    pub binds: Vec<&'a Value<'a>>,
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::row::RowBuilder;
-    use crate::where_clause::Conditions;
-    use crate::{postgres::BuildSql, query_builder::QueryBuilder, row::Row, value::ValueExt};
-
-    use super::*;
+    use crate::dialect::{self, *};
+    use crate::query_builder::*;
 
     struct TestRow {
         abc: i32,
@@ -56,7 +41,7 @@ mod tests {
             .and_where("my_table.col1", "=", "my text".value())
             .or_where("my_table.col1", "=", "my 2".value());
 
-        let s = postgres::Postgres::init().build_sql(&qb);
+        let s = dialect::postgres::Postgres::init().build_sql(&qb);
 
         println!("{}", s.sql);
         println!("{:?}", qb.bindings.as_ref().borrow());
@@ -76,7 +61,7 @@ mod tests {
             .and_where("my_table.col1", "=", "my text".value())
             .or_where("my_table.col1", "=", "my 2".value());
 
-        let s = postgres::Postgres::init().build_sql(&qb);
+        let s = dialect::postgres::Postgres::init().build_sql(&qb);
 
         println!("{}", s.sql);
         println!("{:?}", qb.bindings.as_ref().borrow());
@@ -91,7 +76,7 @@ mod tests {
             .and_where("my_table.col1", "=", "my text".value())
             .or_where("my_table.col1", "=", "my 2".value());
 
-        let s = postgres::Postgres::init().build_sql(&qb);
+        let s = dialect::postgres::Postgres::init().build_sql(&qb);
 
         println!("{}", s.sql);
         println!("{:?}", qb.bindings.as_ref().borrow());

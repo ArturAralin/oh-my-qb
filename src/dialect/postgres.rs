@@ -1,16 +1,10 @@
-use crate::query_builder::{DeleteQuery, QueryBuilder, UpdateQuery};
-use crate::{
-    qb_arg::{Arg, ArgValue, Raw},
-    query_builder::{InsertQuery, Query, SelectQuery},
-    value::Value,
-    where_clause::{Condition, ConditionInner, ConditionOp},
-    Sql,
+use crate::query_builder::*;
+use crate::query_builder::{
+    Arg, ArgValue, ConditionOp, DeleteQuery, QueryBuilder, Raw, SingleWhereCondition, UpdateQuery,
+    WhereCondition,
 };
 
-pub trait BuildSql<'a> {
-    fn init() -> Self;
-    fn build_sql(self, qb: &'a QueryBuilder) -> Sql<'a>;
-}
+use super::{BuildSql, Sql};
 
 #[derive(Debug, Default)]
 pub struct Postgres<'a> {
@@ -199,15 +193,15 @@ impl<'a> Postgres<'a> {
         }
     }
 
-    fn build_where(&mut self, where_conditions: &'a [Condition<'a>]) {
+    fn build_where(&mut self, where_conditions: &'a [WhereCondition<'a>]) {
         where_conditions
             .iter()
             .enumerate()
             .for_each(|(idx, condition)| match condition {
-                Condition::Group(_) => {
+                WhereCondition::Group(_) => {
                     unimplemented!("groups are not supported yet")
                 }
-                Condition::Condition(ConditionInner {
+                WhereCondition::Single(SingleWhereCondition {
                     op,
                     right,
                     left,
