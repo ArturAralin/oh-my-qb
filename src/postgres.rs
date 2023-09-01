@@ -1,9 +1,10 @@
+use crate::query_builder::{DeleteQuery, QueryBuilder, UpdateQuery};
 use crate::{
     qb_arg::{Arg, ArgValue, Raw},
-    query_builder::{InsertQuery, QueryType, SelectQuery},
+    query_builder::{InsertQuery, Query, SelectQuery},
     value::Value,
     where_clause::{Condition, ConditionInner, ConditionOp},
-    QueryBuilder, Sql,
+    Sql,
 };
 
 pub trait BuildSql<'a> {
@@ -23,20 +24,20 @@ impl<'a> BuildSql<'a> for Postgres<'a> {
     }
 
     fn build_sql(mut self, qb: &'a QueryBuilder) -> Sql<'a> {
-        match qb.query_type {
-            QueryType::Select(_) => {
-                self.build_select(qb);
+        match &qb.query {
+            Query::Select(select) => {
+                self.build_select(select);
             }
-            QueryType::Delete => {
+            Query::Delete(_) => {
                 self.build_delete(qb);
             }
-            QueryType::Insert(_) => {
+            Query::Insert(_) => {
                 self.build_insert(qb);
             }
-            _ => {}
+            Query::Update(_) => {
+                self.build_update(qb);
+            }
         }
-
-        self.build_where(qb);
 
         Sql {
             sql: self.sql,
@@ -46,64 +47,111 @@ impl<'a> BuildSql<'a> for Postgres<'a> {
 }
 
 impl<'a> Postgres<'a> {
-    fn build_select(&mut self, qb: &'a QueryBuilder) {
-        if let QueryType::Select(SelectQuery { columns, .. }) = &qb.query_type {
-            self.sql.push_str("select");
+    fn build_select(&mut self, select: &'a SelectQuery) {
+        let SelectQuery {
+            columns,
+            table,
+            where_clause,
+        } = select;
 
-            match columns {
-                Some(columns) => {
-                    self.sql.push(' ');
+        self.sql.push_str("select");
 
-                    if columns.is_empty() {
-                        self.sql.push('*');
-                    } else {
-                        columns.iter().enumerate().for_each(|(idx, column)| {
-                            // todo: handle colum
-                            if idx > 0 {
-                                self.sql.push(',');
-                                self.sql.push(' ');
-                            }
+        match columns {
+            Some(columns) => {
+                self.sql.push(' ');
 
-                            self.sql.push_str(column);
-                        });
-                    }
-                }
-                None => {
-                    self.sql.push(' ');
+                if columns.is_empty() {
                     self.sql.push('*');
+                } else {
+                    columns.iter().enumerate().for_each(|(idx, column)| {
+                        // todo: handle colum
+                        if idx > 0 {
+                            self.sql.push(',');
+                            self.sql.push(' ');
+                        }
+
+                        self.sql.push_str(column);
+                    });
                 }
             }
-
-            if let Some(table) = &qb.table {
-                self.sql.push_str(" from ");
-                // todo: format table name
-                self.sql.push_str(table);
+            None => {
+                self.sql.push(' ');
+                self.sql.push('*');
             }
         }
+
+        if let Some(table) = table {
+            self.sql.push_str(" from ");
+            // todo: format table name
+            self.sql.push_str(table);
+        }
+
+        self.build_where(where_clause);
     }
 
     fn build_delete(&mut self, qb: &'a QueryBuilder) {
-        if let QueryType::Delete = &qb.query_type {
+        if let Query::Delete(DeleteQuery {
+            table,
+            where_clause,
+        }) = &qb.query
+        {
             self.sql.push_str("delete");
 
-            if let Some(table) = &qb.table {
+            if let Some(table) = table {
                 self.sql.push_str(" from ");
                 // todo: format table name
                 self.sql.push_str(table);
             }
+
+            self.build_where(where_clause);
+        }
+    }
+
+    fn build_update(&mut self, qb: &'a QueryBuilder) {
+        if let Query::Update(UpdateQuery {
+            columns,
+            table,
+            where_clause,
+        }) = &qb.query
+        {
+            self.sql.push_str("update");
+
+            if let Some(table) = table {
+                self.sql.push(' ');
+                // todo: format table name
+                self.sql.push_str(table);
+            }
+
+            self.sql.push_str(" set");
+
+            columns
+                .iter()
+                .enumerate()
+                .for_each(|(idx, (column, binding_idx))| {
+                    if idx > 0 {
+                        self.sql.push(',');
+                    }
+
+                    self.sql.push(' ');
+                    self.sql.push_str(column);
+                    self.sql.push_str(" = $");
+                    self.sql.push_str(format!("{}", binding_idx).as_str());
+                });
+
+            self.build_where(where_clause);
         }
     }
 
     fn build_insert(&mut self, qb: &'a QueryBuilder) {
-        if let QueryType::Insert(InsertQuery {
+        if let Query::Insert(InsertQuery {
             ordered_columns,
             rows,
-            ..
-        }) = &qb.query_type
+            table,
+        }) = &qb.query
         {
             self.sql.push_str("insert");
 
-            if let Some(table) = &qb.table {
+            if let Some(table) = table {
                 self.sql.push_str(" into ");
                 // todo: format table name
                 self.sql.push_str(table);
@@ -151,18 +199,14 @@ impl<'a> Postgres<'a> {
         }
     }
 
-    fn build_where(&mut self, qb: &'a QueryBuilder) {
-        if qb.where_conditions.is_empty() {
-            return;
-        }
-
-        self.sql.push_str(" where");
-
-        qb.where_conditions
+    fn build_where(&mut self, where_conditions: &'a [Condition<'a>]) {
+        where_conditions
             .iter()
             .enumerate()
             .for_each(|(idx, condition)| match condition {
-                Condition::Group(_) => {}
+                Condition::Group(_) => {
+                    unimplemented!("groups are not supported yet")
+                }
                 Condition::Condition(ConditionInner {
                     op,
                     right,
@@ -192,8 +236,6 @@ impl<'a> Postgres<'a> {
                     self.build_arg(right);
                 }
             });
-
-        // where_clause
     }
 
     fn build_arg(&mut self, arg: &'a Arg) {
