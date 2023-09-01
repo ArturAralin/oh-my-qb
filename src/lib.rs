@@ -81,4 +81,25 @@ mod tests {
         println!("{}", s.sql);
         println!("{:?}", qb.bindings.as_ref().borrow());
     }
+
+    #[test]
+    fn select2() {
+        let mut qb = QueryBuilder::new();
+
+        qb.select(Some(&["column", "column2", "column3"]))
+            .from("my_tbl")
+            .and_where("ok", "ilike", "pattern*".value())
+            .and_where_grouped(|and_where| {
+                and_where.and_where("column", "=", "column2");
+                and_where.and_where_grouped(|and_where| {
+                    and_where.or_where("nested", "=", "column2");
+                    and_where.or_where("nested", "=", "column2");
+                });
+            });
+
+        let s = dialect::postgres::Postgres::init().build_sql(&qb);
+
+        println!("{}", s.sql);
+        println!("{:?}", qb.bindings.as_ref().borrow());
+    }
 }

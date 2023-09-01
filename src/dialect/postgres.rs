@@ -80,7 +80,7 @@ impl<'a> Postgres<'a> {
             self.sql.push_str(table);
         }
 
-        self.build_where(where_clause);
+        self.build_where(where_clause, 0);
     }
 
     fn build_delete(&mut self, qb: &'a QueryBuilder) {
@@ -97,7 +97,7 @@ impl<'a> Postgres<'a> {
                 self.sql.push_str(table);
             }
 
-            self.build_where(where_clause);
+            self.build_where(where_clause, 0);
         }
     }
 
@@ -132,7 +132,7 @@ impl<'a> Postgres<'a> {
                     self.sql.push_str(format!("{}", binding_idx).as_str());
                 });
 
-            self.build_where(where_clause);
+            self.build_where(where_clause, 0);
         }
     }
 
@@ -193,13 +193,31 @@ impl<'a> Postgres<'a> {
         }
     }
 
-    fn build_where(&mut self, where_conditions: &'a [WhereCondition<'a>]) {
+    fn build_where(&mut self, where_conditions: &'a [WhereCondition<'a>], depth: usize) {
+        if depth == 0 {
+            self.sql.push_str(" where");
+        }
+
         where_conditions
             .iter()
             .enumerate()
             .for_each(|(idx, condition)| match condition {
-                WhereCondition::Group(_) => {
-                    unimplemented!("groups are not supported yet")
+                WhereCondition::Group(GroupedWhereCondition { op, conditions }) => {
+                    if idx > 0 {
+                        match op {
+                            ConditionOp::And => {
+                                self.sql.push_str(" and");
+                            }
+                            ConditionOp::Or => {
+                                self.sql.push_str(" or");
+                            }
+                        };
+                    }
+
+                    self.sql.push(' ');
+                    self.sql.push('(');
+                    self.build_where(conditions, depth + 1);
+                    self.sql.push(')');
                 }
                 WhereCondition::Single(SingleWhereCondition {
                     op,
@@ -211,18 +229,15 @@ impl<'a> Postgres<'a> {
                     if idx > 0 {
                         match op {
                             ConditionOp::And => {
-                                self.sql.push_str(" and ");
+                                self.sql.push_str(" and");
                             }
                             ConditionOp::Or => {
-                                self.sql.push_str(" or ");
+                                self.sql.push_str(" or");
                             }
                         };
                     }
 
-                    if idx == 0 {
-                        self.sql.push(' ');
-                    }
-
+                    self.sql.push(' ');
                     self.build_arg(left);
                     self.sql.push(' ');
                     self.sql.push_str(middle);

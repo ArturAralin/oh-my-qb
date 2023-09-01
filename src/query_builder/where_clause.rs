@@ -13,8 +13,8 @@ pub struct SingleWhereCondition<'a> {
 
 #[derive(Debug)]
 pub struct GroupedWhereCondition<'a> {
-    op: ConditionOp,
-    conditions: Vec<WhereCondition<'a>>,
+    pub op: ConditionOp,
+    pub conditions: Vec<WhereCondition<'a>>,
 }
 
 #[derive(Debug)]

@@ -162,15 +162,8 @@ impl<'a> Conditions<'a> for QueryBuilder<'a> {
         }
     }
 
-    fn push_bindings<I>(&mut self, values: I)
-    where
-        I: Iterator<Item = Value<'a>>,
-    {
-        self.bindings.as_ref().borrow_mut().extend(values);
-    }
-
-    fn get_binding_idx(&self) -> usize {
-        self.bindings.as_ref().borrow().len() + 1
+    fn get_bindings(&self) -> Rc<RefCell<Vec<Value<'a>>>> {
+        Rc::clone(&self.bindings)
     }
 }
 
