@@ -258,29 +258,33 @@ impl<'a> Postgres<'a> {
 
                 self.sql.push_str(col.as_str());
             }
-            Arg::Value(arg_value) => {
-                if let ArgValue::Binding((start, end)) = arg_value {
-                    let count = end - start;
+            Arg::Value(ArgValue::Binding((start, end))) => {
+                let count = end - start;
 
-                    if count > 1 {
-                        self.sql.push('(');
+                if count > 1 {
+                    self.sql.push('(');
+                }
+
+                for (idx, binding_idx) in (*start..*end).enumerate() {
+                    if idx > 0 && count > 1 {
+                        self.sql.push(',');
+                        self.sql.push(' ');
                     }
 
-                    for (idx, binding_idx) in (*start..*end).enumerate() {
-                        if idx > 0 && count > 1 {
-                            self.sql.push(',');
-                            self.sql.push(' ');
-                        }
+                    self.sql.push_str(format!("${}", binding_idx).as_str())
+                }
 
-                        self.sql.push_str(format!("${}", binding_idx).as_str())
-                    }
-
-                    if count > 1 {
-                        self.sql.push(')');
-                    }
+                if count > 1 {
+                    self.sql.push(')');
                 }
             }
+            Arg::Value(ArgValue::Value(Value::Null)) => {
+                self.sql.push_str("null");
+            }
             Arg::Raw(Raw { sql, .. }) => self.sql.push_str(sql),
+            _ => {
+                unreachable!("Invalid case reached")
+            }
         }
     }
 }

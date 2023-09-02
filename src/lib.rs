@@ -103,4 +103,19 @@ mod tests {
         println!("{}", s.sql);
         println!("{:?}", qb.bindings.as_ref().borrow());
     }
+
+    #[test]
+    fn select_and_where_null() {
+        let mut qb = QueryBuilder::new();
+
+        qb.select(None)
+            .from("my_tbl")
+            .and_where_null("my_column")
+            .or_where_null("another_column");
+
+        let s = dialect::postgres::Postgres::init().build_sql(&qb);
+
+        println!("{}", s.sql);
+        println!("{:?}", qb.bindings.as_ref().borrow());
+    }
 }

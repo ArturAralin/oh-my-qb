@@ -123,6 +123,82 @@ pub trait Conditions<'a> {
 
         self
     }
+
+    fn and_where_null<L: Into<Arg<'a>>>(&mut self, left: L) -> &mut Self {
+        let bindings = self.get_bindings();
+        let offset = { bindings.as_ref().borrow().len() };
+        let mut bindings = bindings.as_ref().borrow_mut();
+
+        let mut left: Arg<'a> = left.into();
+
+        bindings.extend(left.bindings(offset).into_iter());
+
+        self.push_cond(WhereCondition::Single(SingleWhereCondition {
+            op: ConditionOp::And,
+            left,
+            middle: "is".to_owned(),
+            right: Arg::Value(super::ArgValue::Value(Value::Null)),
+        }));
+
+        self
+    }
+
+    fn or_where_null<L: Into<Arg<'a>>>(&mut self, left: L) -> &mut Self {
+        let bindings = self.get_bindings();
+        let offset = { bindings.as_ref().borrow().len() };
+        let mut bindings = bindings.as_ref().borrow_mut();
+
+        let mut left: Arg<'a> = left.into();
+
+        bindings.extend(left.bindings(offset).into_iter());
+
+        self.push_cond(WhereCondition::Single(SingleWhereCondition {
+            op: ConditionOp::Or,
+            left,
+            middle: "is".to_owned(),
+            right: Arg::Value(super::ArgValue::Value(Value::Null)),
+        }));
+
+        self
+    }
+
+    fn and_where_not_null<L: Into<Arg<'a>>>(&mut self, left: L) -> &mut Self {
+        let bindings = self.get_bindings();
+        let offset = { bindings.as_ref().borrow().len() };
+        let mut bindings = bindings.as_ref().borrow_mut();
+
+        let mut left: Arg<'a> = left.into();
+
+        bindings.extend(left.bindings(offset).into_iter());
+
+        self.push_cond(WhereCondition::Single(SingleWhereCondition {
+            op: ConditionOp::And,
+            left,
+            middle: "is not".to_owned(),
+            right: Arg::Value(super::ArgValue::Value(Value::Null)),
+        }));
+
+        self
+    }
+
+    fn or_where_not_null<L: Into<Arg<'a>>>(&mut self, left: L) -> &mut Self {
+        let bindings = self.get_bindings();
+        let offset = { bindings.as_ref().borrow().len() };
+        let mut bindings = bindings.as_ref().borrow_mut();
+
+        let mut left: Arg<'a> = left.into();
+
+        bindings.extend(left.bindings(offset).into_iter());
+
+        self.push_cond(WhereCondition::Single(SingleWhereCondition {
+            op: ConditionOp::Or,
+            left,
+            middle: "is not".to_owned(),
+            right: Arg::Value(super::ArgValue::Value(Value::Null)),
+        }));
+
+        self
+    }
 }
 
 impl<'a> Conditions<'a> for GroupBuilder<'a> {

@@ -6,6 +6,7 @@ pub enum Value<'a> {
     Integer(i32),
     BigInt(i64),
     Boolean(bool),
+    Null,
 }
 
 pub trait ValueExt<'a> {
