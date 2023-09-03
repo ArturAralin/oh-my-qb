@@ -7,6 +7,18 @@ pub struct PostgresSqlDialect<'a> {
     pub bindings: Vec<&'a Value<'a>>,
 }
 
+fn write_relation(sql: &mut String, relation: &str) {
+    for (idx, relation_part) in relation.split('.').enumerate() {
+        if idx > 0 {
+            sql.push('.');
+        }
+
+        sql.push('"');
+        sql.push_str(relation_part);
+        sql.push('"');
+    }
+}
+
 impl<'a> BuildSql<'a> for PostgresSqlDialect<'a> {
     fn init() -> Self {
         Self::default()
@@ -48,6 +60,8 @@ impl<'a> PostgresSqlDialect<'a> {
             columns,
             table,
             where_clause,
+            limit,
+            offset,
         } = select;
 
         self.sql.push_str("select");
@@ -60,13 +74,12 @@ impl<'a> PostgresSqlDialect<'a> {
                     self.sql.push('*');
                 } else {
                     columns.iter().enumerate().for_each(|(idx, column)| {
-                        // todo: handle colum
                         if idx > 0 {
                             self.sql.push(',');
                             self.sql.push(' ');
                         }
 
-                        self.sql.push_str(column);
+                        write_relation(&mut self.sql, column);
                     });
                 }
             }
@@ -78,11 +91,20 @@ impl<'a> PostgresSqlDialect<'a> {
 
         if let Some(table) = table {
             self.sql.push_str(" from ");
-            // todo: format table name
-            self.sql.push_str(table);
+            write_relation(&mut self.sql, table);
         }
 
         self.build_where(where_clause, 0);
+
+        if let Some(limit) = limit {
+            self.sql.push_str(" limit ");
+            self.sql.push_str(limit.to_string().as_str());
+        }
+
+        if let Some(offset) = offset {
+            self.sql.push_str(" offset ");
+            self.sql.push_str(offset.to_string().as_str());
+        }
     }
 
     fn build_delete(&mut self, qb: &'a QueryBuilder<'a>) {
@@ -95,8 +117,7 @@ impl<'a> PostgresSqlDialect<'a> {
 
             if let Some(table) = table {
                 self.sql.push_str(" from ");
-                // todo: format table name
-                self.sql.push_str(table);
+                write_relation(&mut self.sql, table);
             }
 
             self.build_where(where_clause, 0);
@@ -114,8 +135,7 @@ impl<'a> PostgresSqlDialect<'a> {
 
             if let Some(table) = table {
                 self.sql.push(' ');
-                // todo: format table name
-                self.sql.push_str(table);
+                write_relation(&mut self.sql, table);
             }
 
             self.sql.push_str(" set");
@@ -149,8 +169,7 @@ impl<'a> PostgresSqlDialect<'a> {
 
             if let Some(table) = table {
                 self.sql.push_str(" into ");
-                // todo: format table name
-                self.sql.push_str(table);
+                write_relation(&mut self.sql, table);
             }
 
             if let Some(ordered_columns) = ordered_columns {

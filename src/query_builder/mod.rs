@@ -6,11 +6,10 @@ mod value;
 mod where_clause;
 
 pub use self::query::select::*;
-use crate::sql_dialect::{postgres::PostgresSqlDialect, BuildSql, Sql};
+use crate::sql_dialect::{BuildSql, Sql};
 pub use conditions::*;
 pub use qb_arg::*;
 pub use row::*;
-use sqlx::Database;
 use std::{borrow::Cow, cell::RefCell, rc::Rc};
 pub use value::*;
 pub use where_clause::*;
@@ -65,6 +64,8 @@ impl<'a> QueryBuilder<'a> {
             columns,
             table: None,
             where_clause: Default::default(),
+            limit: None,
+            offset: None,
         });
 
         self
@@ -153,6 +154,26 @@ impl<'a> QueryBuilder<'a> {
         self
     }
 
+    pub fn limit(&mut self, limit: usize) -> &mut Self {
+        if let Query::Select(select) = &mut self.query {
+            select.limit = Some(limit);
+        } else {
+            // todo: error here
+        }
+
+        self
+    }
+
+    pub fn offset(&mut self, offset: usize) -> &mut Self {
+        if let Query::Select(select) = &mut self.query {
+            select.offset = Some(offset);
+        } else {
+            // todo: error here
+        }
+
+        self
+    }
+
     pub fn sql<D>(&'a self) -> Sql<'a>
     where
         D: BuildSql<'a>,
@@ -163,41 +184,6 @@ impl<'a> QueryBuilder<'a> {
 
         builder.sql()
     }
-
-    // pub fn sqlx_query<D>(
-    //     &'a self,
-    // ) -> sqlx::query::Query<'_, sqlx::postgres::Postgres, sqlx::postgres::PgArguments>
-    // where
-    //     D: BuildSql<'a>,
-    // {
-    //     let mut builder = D::init();
-
-    //     builder.build_sql(self);
-
-    //     let r = builder.sql();
-    //     // let r = self.sql::<PostgresSqlDialect>();
-    //     let mut query: sqlx::QueryBuilder<'_, sqlx::Postgres> = sqlx::QueryBuilder::new(r.sql);
-    //     query.
-
-    //     // let mut query: sqlx::query::Query<
-    //     //     '_,
-    //     //     sqlx::postgres::Postgres,
-    //     //     sqlx::postgres::PgArguments,
-    //     // > = query.build();
-
-    //     let q = sqlx::query(&r.sql);
-
-    //     // for binding in r.bindings.into_iter() {
-    //     //     match binding {
-    //     //         Value::Integer(v) => {
-    //     //             query = query.bind(*v);
-    //     //         }
-    //     //         _ => panic!("unsuppored"),
-    //     //     }
-    //     // }
-
-    //     q
-    // }
 }
 
 impl<'a> Conditions<'a> for QueryBuilder<'a> {
@@ -247,10 +233,6 @@ pub enum Query<'a> {
 
 impl<'a> Default for Query<'a> {
     fn default() -> Self {
-        Self::Select(SelectQuery {
-            columns: None,
-            table: None,
-            where_clause: Default::default(),
-        })
+        Self::Select(SelectQuery::default())
     }
 }

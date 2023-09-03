@@ -1,8 +1,11 @@
+pub mod prelude;
 mod query_builder;
-mod sql_dialect;
+pub mod sql_dialect;
 
+pub use query_builder::Conditions;
 pub use query_builder::QueryBuilder;
-use query_builder::Value;
+pub use query_builder::RawExt;
+pub use query_builder::ValueExt;
 
 #[cfg(test)]
 mod tests {
@@ -42,7 +45,7 @@ mod tests {
             .and_where("my_table.col1", "=", "my text".value())
             .or_where("my_table.col1", "=", "my 2".value());
 
-        let s = sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
+        sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
 
         // println!("{}", s.sql);
         // println!("{:?}", qb.bindings.as_ref().borrow());
@@ -62,7 +65,7 @@ mod tests {
             .and_where("my_table.col1", "=", "my text".value())
             .or_where("my_table.col1", "=", "my 2".value());
 
-        let s = sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
+        sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
 
         // println!("{}", s.sql);
         // println!("{:?}", qb.bindings.as_ref().borrow());
@@ -78,7 +81,7 @@ mod tests {
             vec![false.value(), "array".value(), "value".value()],
         );
 
-        let s = sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
+        sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
 
         // println!("{}", s.sql);
         // println!("{:?}", qb.bindings.as_ref().borrow());
@@ -99,7 +102,7 @@ mod tests {
                 });
             });
 
-        let s = sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
+        sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
 
         // println!("{}", s.sql);
         // println!("{:?}", qb.bindings.as_ref().borrow());
@@ -114,7 +117,7 @@ mod tests {
             .and_where_null("my_column")
             .or_where_null("another_column");
 
-        let s = sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
+        sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
 
         // println!("{}", s.sql);
         // println!("{:?}", qb.bindings.as_ref().borrow());
@@ -132,7 +135,7 @@ mod tests {
                 .bindings(vec![10.value(), 20.value()]),
         );
 
-        let s = sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
+        sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
 
         // println!("{}", s.sql);
         // println!("{:?}", qb.bindings.as_ref().borrow());
@@ -165,10 +168,7 @@ mod tests {
             },
         ]);
 
-        let s = sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
-
-        // println!("{}", s.sql);
-        // println!("{:?}", qb.bindings.as_ref().borrow());
+        sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
     }
 
     #[test]
@@ -287,18 +287,3 @@ mod tests {
         println!("{}", s);
     }
 }
-
-// pub trait Qb<'a> {
-//     fn bindings(self, bindings: Vec<&'a Value<'a>>) -> Self;
-// }
-
-// impl<'a> Qb<'a> for sqlx::QueryBuilder<'a, sqlx::Postgres> {
-//     fn bindings(mut self, bindings: Vec<&'a Value<'a>>) -> Self {
-//         bindings.into_iter().for_each(|value| match value {
-//             Value::Integer(v) => self.bind,
-//             _ => unimplemented!("unimpl"),
-//         });
-
-//         self
-//     }
-// }

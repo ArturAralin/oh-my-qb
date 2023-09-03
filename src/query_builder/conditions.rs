@@ -30,25 +30,11 @@ pub trait Conditions<'a> {
         op: &str,
         right: R,
     ) -> &mut Self {
-        let bindings = self.get_bindings();
-        let mut offset = { bindings.as_ref().borrow().len() };
-        let mut bindings = bindings.as_ref().borrow_mut();
-
-        let mut left: Arg<'a> = left.into();
-
-        let left_values = left.bindings(offset);
-
-        offset += left_values.len();
-
-        let mut right: Arg<'a> = right.into();
-
-        bindings.extend(right.bindings(offset).into_iter());
-
         self.push_cond(WhereCondition::Single(SingleWhereCondition {
             op: ConditionOp::And,
-            left,
+            left: left.into(),
             middle: op.to_owned(),
-            right,
+            right: right.into(),
         }));
 
         self
@@ -60,27 +46,11 @@ pub trait Conditions<'a> {
         op: &str,
         right: R,
     ) -> &mut Self {
-        let bindings = self.get_bindings();
-        let mut offset = { bindings.as_ref().borrow().len() };
-        let mut bindings = bindings.as_ref().borrow_mut();
-
-        let mut left: Arg<'a> = left.into();
-
-        let left_values = left.bindings(offset);
-
-        offset += left_values.len();
-
-        bindings.extend(left_values.into_iter());
-
-        let mut right: Arg<'a> = right.into();
-
-        bindings.extend(right.bindings(offset).into_iter());
-
         self.push_cond(WhereCondition::Single(SingleWhereCondition {
             op: ConditionOp::Or,
-            left,
+            left: left.into(),
             middle: op.to_owned(),
-            right,
+            right: right.into(),
         }));
 
         self
@@ -125,17 +95,9 @@ pub trait Conditions<'a> {
     }
 
     fn and_where_null<L: Into<Arg<'a>>>(&mut self, left: L) -> &mut Self {
-        let bindings = self.get_bindings();
-        let offset = { bindings.as_ref().borrow().len() };
-        let mut bindings = bindings.as_ref().borrow_mut();
-
-        let mut left: Arg<'a> = left.into();
-
-        bindings.extend(left.bindings(offset).into_iter());
-
         self.push_cond(WhereCondition::Single(SingleWhereCondition {
             op: ConditionOp::And,
-            left,
+            left: left.into(),
             middle: "is".to_owned(),
             right: Arg::Value(super::ArgValue::Value(Value::Null)),
         }));
@@ -144,17 +106,9 @@ pub trait Conditions<'a> {
     }
 
     fn or_where_null<L: Into<Arg<'a>>>(&mut self, left: L) -> &mut Self {
-        let bindings = self.get_bindings();
-        let offset = { bindings.as_ref().borrow().len() };
-        let mut bindings = bindings.as_ref().borrow_mut();
-
-        let mut left: Arg<'a> = left.into();
-
-        bindings.extend(left.bindings(offset).into_iter());
-
         self.push_cond(WhereCondition::Single(SingleWhereCondition {
             op: ConditionOp::Or,
-            left,
+            left: left.into(),
             middle: "is".to_owned(),
             right: Arg::Value(super::ArgValue::Value(Value::Null)),
         }));
@@ -163,17 +117,9 @@ pub trait Conditions<'a> {
     }
 
     fn and_where_not_null<L: Into<Arg<'a>>>(&mut self, left: L) -> &mut Self {
-        let bindings = self.get_bindings();
-        let offset = { bindings.as_ref().borrow().len() };
-        let mut bindings = bindings.as_ref().borrow_mut();
-
-        let mut left: Arg<'a> = left.into();
-
-        bindings.extend(left.bindings(offset).into_iter());
-
         self.push_cond(WhereCondition::Single(SingleWhereCondition {
             op: ConditionOp::And,
-            left,
+            left: left.into(),
             middle: "is not".to_owned(),
             right: Arg::Value(super::ArgValue::Value(Value::Null)),
         }));
@@ -182,17 +128,9 @@ pub trait Conditions<'a> {
     }
 
     fn or_where_not_null<L: Into<Arg<'a>>>(&mut self, left: L) -> &mut Self {
-        let bindings = self.get_bindings();
-        let offset = { bindings.as_ref().borrow().len() };
-        let mut bindings = bindings.as_ref().borrow_mut();
-
-        let mut left: Arg<'a> = left.into();
-
-        bindings.extend(left.bindings(offset).into_iter());
-
         self.push_cond(WhereCondition::Single(SingleWhereCondition {
             op: ConditionOp::Or,
-            left,
+            left: left.into(),
             middle: "is not".to_owned(),
             right: Arg::Value(super::ArgValue::Value(Value::Null)),
         }));

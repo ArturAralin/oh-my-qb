@@ -1,7 +1,7 @@
 pub mod postgres;
-use sqlx::Arguments;
 
 use crate::query_builder::{QueryBuilder, Value};
+use sqlx::Arguments;
 
 #[derive(Debug)]
 pub enum Dialect {
@@ -11,6 +11,8 @@ pub enum Dialect {
 pub struct Sql<'a> {
     pub sql: String,
     pub bindings: Vec<&'a Value<'a>>,
+
+    // todo: remove it?
     pub dialect: Dialect,
 }
 
