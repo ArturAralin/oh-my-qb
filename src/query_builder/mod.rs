@@ -5,6 +5,8 @@ mod row;
 mod value;
 mod where_clause;
 
+use self::query::join::RegularJoin;
+pub use self::query::join::*;
 pub use self::query::select::*;
 use crate::sql_dialect::{BuildSql, Sql};
 pub use conditions::*;
@@ -63,6 +65,7 @@ impl<'a> QueryBuilder<'a> {
         self.query = Query::Select(SelectQuery {
             columns,
             table: None,
+            joins: None,
             where_clause: Default::default(),
             limit: None,
             offset: None,
@@ -167,6 +170,33 @@ impl<'a> QueryBuilder<'a> {
     pub fn offset(&mut self, offset: usize) -> &mut Self {
         if let Query::Select(select) = &mut self.query {
             select.offset = Some(offset);
+        } else {
+            // todo: error here
+        }
+
+        self
+    }
+
+    pub fn left_join<L: Into<Arg<'a>>, R: Into<Arg<'a>>>(
+        &mut self,
+        table: &'a str,
+        left: L,
+        op: &'a str,
+        right: R,
+    ) -> &mut Self {
+        if let Query::Select(select) = &mut self.query {
+            let join = query::join::Join::Regular(RegularJoin {
+                join_type: Some("left"),
+                table: Cow::Borrowed(table),
+                left: left.into(),
+                op: Cow::Borrowed(op),
+                right: right.into(),
+            });
+            if let Some(joins) = &mut select.joins {
+                joins.push(join)
+            } else {
+                select.joins = Some(vec![join]);
+            }
         } else {
             // todo: error here
         }
