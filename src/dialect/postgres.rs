@@ -281,7 +281,22 @@ impl<'a> Postgres<'a> {
             Arg::Value(ArgValue::Value(Value::Null)) => {
                 self.sql.push_str("null");
             }
-            Arg::Raw(Raw { sql, .. }) => self.sql.push_str(sql),
+            Arg::Raw(Raw {
+                sql,
+                bindings_slice,
+                ..
+            }) => {
+                let mut idx = bindings_slice.map(|(start, _)| start).unwrap_or(0);
+
+                for ch in sql.chars() {
+                    if ch == '?' {
+                        idx += 1;
+                        self.sql.push_str(format!("${}", idx).as_str());
+                    } else {
+                        self.sql.push(ch);
+                    }
+                }
+            }
             _ => {
                 unreachable!("Invalid case reached")
             }

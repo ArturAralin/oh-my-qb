@@ -42,3 +42,45 @@ impl<'a> ValueExt<'a> for bool {
         Value::Boolean(self)
     }
 }
+
+impl<'a, T: Into<Value<'a>>> ValueExt<'a> for Option<T> {
+    fn value(self) -> Value<'a> {
+        match self {
+            Some(value) => value.into(),
+            None => Value::Null,
+        }
+    }
+}
+
+impl<'a> From<i32> for Value<'a> {
+    fn from(value: i32) -> Self {
+        Self::Integer(value)
+    }
+}
+
+impl<'a> From<i64> for Value<'a> {
+    fn from(value: i64) -> Self {
+        Self::BigInt(value)
+    }
+}
+
+impl<'a> From<&'a str> for Value<'a> {
+    fn from(value: &'a str) -> Self {
+        Self::String(Cow::Borrowed(value))
+    }
+}
+
+impl<'a> From<String> for Value<'a> {
+    fn from(value: String) -> Self {
+        Self::String(Cow::Owned(value))
+    }
+}
+
+impl<'a, T: Into<Value<'a>>> From<Option<T>> for Value<'a> {
+    fn from(value: Option<T>) -> Self {
+        match value {
+            Some(value) => value.into(),
+            None => Value::Null,
+        }
+    }
+}

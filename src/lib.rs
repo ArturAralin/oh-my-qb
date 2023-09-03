@@ -118,4 +118,55 @@ mod tests {
         println!("{}", s.sql);
         println!("{:?}", qb.bindings.as_ref().borrow());
     }
+
+    #[test]
+    fn raw_arg() {
+        let mut qb = QueryBuilder::new();
+
+        qb.select(None).from("my_tbl").and_where(
+            "column",
+            "eq",
+            "'{?, ?}'::int[]"
+                .raw()
+                .bindings(vec![10.value(), 20.value()]),
+        );
+
+        let s = dialect::postgres::Postgres::init().build_sql(&qb);
+
+        println!("{}", s.sql);
+        println!("{:?}", qb.bindings.as_ref().borrow());
+    }
+
+    #[test]
+    fn option_handling() {
+        struct TestR {
+            option_column: Option<String>,
+        }
+
+        impl<'a> Row<'a> for TestR {
+            fn columns(&self) -> &'static [&'static str] {
+                &["option_column"]
+            }
+
+            fn into_row(self, builder: &mut RowBuilder<'a>) {
+                builder.append_binding(self.option_column.value());
+            }
+        }
+
+        let mut qb = QueryBuilder::new();
+
+        qb.insert().into("my_tbl").values(vec![
+            TestR {
+                option_column: Some("test_str".to_owned()),
+            },
+            TestR {
+                option_column: None,
+            },
+        ]);
+
+        let s = dialect::postgres::Postgres::init().build_sql(&qb);
+
+        println!("{}", s.sql);
+        println!("{:?}", qb.bindings.as_ref().borrow());
+    }
 }

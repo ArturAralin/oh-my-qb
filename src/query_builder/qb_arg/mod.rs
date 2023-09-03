@@ -1,13 +1,11 @@
+mod raw;
+
 use super::value::Value;
+pub use raw::*;
 use std::{borrow::Cow, vec};
 
 #[derive(Debug)]
 pub struct Column<'a>(pub Cow<'a, str>);
-
-#[derive(Debug)]
-pub struct Raw<'a> {
-    pub sql: Cow<'a, str>,
-}
 
 #[derive(Debug)]
 pub enum ArgValue<'a> {
@@ -44,11 +42,11 @@ pub enum Arg<'a> {
 }
 
 impl<'a> Arg<'a> {
-    pub fn bindings(&mut self, idx: usize) -> Vec<Value<'a>> {
-        if let Self::Value(v) = self {
-            v.binding(idx)
-        } else {
-            vec![]
+    pub fn bindings(&mut self, start_idx: usize) -> Vec<Value<'a>> {
+        match self {
+            Self::Value(v) => v.binding(start_idx),
+            Self::Raw(r) => r.binding(start_idx).unwrap_or_default(),
+            _ => vec![],
         }
     }
 }

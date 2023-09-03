@@ -1,7 +1,4 @@
-use super::{
-    conditions::ConditionOp,
-    qb_arg::{Arg, Raw},
-};
+use super::{conditions::ConditionOp, qb_arg::Arg};
 
 #[derive(Debug)]
 pub struct SingleWhereCondition<'a> {
@@ -21,18 +18,6 @@ pub struct GroupedWhereCondition<'a> {
 pub enum WhereCondition<'a> {
     Group(GroupedWhereCondition<'a>),
     Single(SingleWhereCondition<'a>),
-}
-
-pub trait RawExt<'a> {
-    fn raw(self) -> Raw<'a>;
-}
-
-impl<'a> RawExt<'a> for &'a str {
-    fn raw(self) -> Raw<'a> {
-        Raw {
-            sql: std::borrow::Cow::Borrowed(self),
-        }
-    }
 }
 
 impl<'a> GroupedWhereCondition<'a> {
