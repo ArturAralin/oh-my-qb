@@ -14,7 +14,7 @@ fn count_bindings(sql: &str) -> usize {
     count
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Raw<'a> {
     pub sql: Cow<'a, str>,
     pub bindings: Option<Vec<Value<'a>>>,

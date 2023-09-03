@@ -1,17 +1,21 @@
 mod conditions;
 mod qb_arg;
+mod query;
 mod row;
 mod value;
 mod where_clause;
 
+pub use self::query::select::*;
+use crate::sql_dialect::{postgres::PostgresSqlDialect, BuildSql, Sql};
 pub use conditions::*;
 pub use qb_arg::*;
 pub use row::*;
+use sqlx::Database;
 use std::{borrow::Cow, cell::RefCell, rc::Rc};
 pub use value::*;
 pub use where_clause::*;
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct QueryBuilder<'a> {
     pub query: Query<'a>,
     pub bindings: Rc<RefCell<Vec<Value<'a>>>>,
@@ -148,6 +152,52 @@ impl<'a> QueryBuilder<'a> {
 
         self
     }
+
+    pub fn sql<D>(&'a self) -> Sql<'a>
+    where
+        D: BuildSql<'a>,
+    {
+        let mut builder = D::init();
+
+        builder.build_sql(self);
+
+        builder.sql()
+    }
+
+    // pub fn sqlx_query<D>(
+    //     &'a self,
+    // ) -> sqlx::query::Query<'_, sqlx::postgres::Postgres, sqlx::postgres::PgArguments>
+    // where
+    //     D: BuildSql<'a>,
+    // {
+    //     let mut builder = D::init();
+
+    //     builder.build_sql(self);
+
+    //     let r = builder.sql();
+    //     // let r = self.sql::<PostgresSqlDialect>();
+    //     let mut query: sqlx::QueryBuilder<'_, sqlx::Postgres> = sqlx::QueryBuilder::new(r.sql);
+    //     query.
+
+    //     // let mut query: sqlx::query::Query<
+    //     //     '_,
+    //     //     sqlx::postgres::Postgres,
+    //     //     sqlx::postgres::PgArguments,
+    //     // > = query.build();
+
+    //     let q = sqlx::query(&r.sql);
+
+    //     // for binding in r.bindings.into_iter() {
+    //     //     match binding {
+    //     //         Value::Integer(v) => {
+    //     //             query = query.bind(*v);
+    //     //         }
+    //     //         _ => panic!("unsuppored"),
+    //     //     }
+    //     // }
+
+    //     q
+    // }
 }
 
 impl<'a> Conditions<'a> for QueryBuilder<'a> {
@@ -167,34 +217,27 @@ impl<'a> Conditions<'a> for QueryBuilder<'a> {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct SelectQuery<'a> {
-    pub columns: Option<Vec<Cow<'a, str>>>,
-    pub table: Option<Cow<'a, str>>,
-    pub where_clause: Vec<WhereCondition<'a>>,
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct InsertQuery<'a> {
     pub table: Option<Cow<'a, str>>,
     pub rows: Vec<(usize, usize)>,
     pub ordered_columns: Option<&'static [&'static str]>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UpdateQuery<'a> {
     pub table: Option<Cow<'a, str>>,
     pub columns: Vec<(Cow<'a, str>, usize)>,
     pub where_clause: Vec<WhereCondition<'a>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DeleteQuery<'a> {
     pub table: Option<Cow<'a, str>>,
     pub where_clause: Vec<WhereCondition<'a>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Query<'a> {
     Select(SelectQuery<'a>),
     Update(UpdateQuery<'a>),

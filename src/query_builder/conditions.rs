@@ -8,7 +8,7 @@ use super::{
     where_clause::{SingleWhereCondition, WhereCondition},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ConditionOp {
     And,
     Or,

@@ -1,23 +1,30 @@
+use super::BuildSql;
 use crate::query_builder::*;
-use crate::query_builder::{
-    Arg, ArgValue, ConditionOp, DeleteQuery, QueryBuilder, Raw, SingleWhereCondition, UpdateQuery,
-    WhereCondition,
-};
-
-use super::{BuildSql, Sql};
 
 #[derive(Debug, Default)]
-pub struct Postgres<'a> {
+pub struct PostgresSqlDialect<'a> {
     pub sql: String,
     pub bindings: Vec<&'a Value<'a>>,
 }
 
-impl<'a> BuildSql<'a> for Postgres<'a> {
+impl<'a> BuildSql<'a> for PostgresSqlDialect<'a> {
     fn init() -> Self {
         Self::default()
     }
 
-    fn build_sql(mut self, qb: &'a QueryBuilder) -> Sql<'a> {
+    fn dialect() -> super::Dialect {
+        super::Dialect::Postgres
+    }
+
+    fn sql(self) -> super::Sql<'a> {
+        super::Sql {
+            sql: self.sql,
+            bindings: self.bindings,
+            dialect: Self::dialect(),
+        }
+    }
+
+    fn build_sql(&mut self, qb: &'a QueryBuilder<'a>) {
         match &qb.query {
             Query::Select(select) => {
                 self.build_select(select);
@@ -32,16 +39,11 @@ impl<'a> BuildSql<'a> for Postgres<'a> {
                 self.build_update(qb);
             }
         }
-
-        Sql {
-            sql: self.sql,
-            binds: self.bindings,
-        }
     }
 }
 
-impl<'a> Postgres<'a> {
-    fn build_select(&mut self, select: &'a SelectQuery) {
+impl<'a> PostgresSqlDialect<'a> {
+    fn build_select(&mut self, select: &'a SelectQuery<'a>) {
         let SelectQuery {
             columns,
             table,
@@ -83,7 +85,7 @@ impl<'a> Postgres<'a> {
         self.build_where(where_clause, 0);
     }
 
-    fn build_delete(&mut self, qb: &'a QueryBuilder) {
+    fn build_delete(&mut self, qb: &'a QueryBuilder<'a>) {
         if let Query::Delete(DeleteQuery {
             table,
             where_clause,
@@ -101,7 +103,7 @@ impl<'a> Postgres<'a> {
         }
     }
 
-    fn build_update(&mut self, qb: &'a QueryBuilder) {
+    fn build_update(&mut self, qb: &'a QueryBuilder<'a>) {
         if let Query::Update(UpdateQuery {
             columns,
             table,
@@ -194,7 +196,7 @@ impl<'a> Postgres<'a> {
     }
 
     fn build_where(&mut self, where_conditions: &'a [WhereCondition<'a>], depth: usize) {
-        if depth == 0 {
+        if !where_conditions.is_empty() && depth == 0 {
             self.sql.push_str(" where");
         }
 
@@ -247,7 +249,7 @@ impl<'a> Postgres<'a> {
             });
     }
 
-    fn build_arg(&mut self, arg: &'a Arg) {
+    fn build_arg(&mut self, arg: &'a Arg<'a>) {
         match arg {
             Arg::Column(c) => {
                 let col =
@@ -281,6 +283,11 @@ impl<'a> Postgres<'a> {
             Arg::Value(ArgValue::Value(Value::Null)) => {
                 self.sql.push_str("null");
             }
+            Arg::Value(ArgValue::Value(a)) => {
+                self.bindings.push(a);
+                self.sql.push('$');
+                self.sql.push_str(self.bindings.len().to_string().as_str());
+            }
             Arg::Raw(Raw {
                 sql,
                 bindings_slice,
@@ -296,6 +303,11 @@ impl<'a> Postgres<'a> {
                         self.sql.push(ch);
                     }
                 }
+            }
+            Arg::SubQuery(x) => {
+                self.sql.push('(');
+                self.build_sql(&x.0);
+                self.sql.push(')');
             }
             _ => {
                 unreachable!("Invalid case reached")

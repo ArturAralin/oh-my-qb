@@ -1,12 +1,13 @@
-mod dialect;
 mod query_builder;
+mod sql_dialect;
 
 pub use query_builder::QueryBuilder;
+use query_builder::Value;
 
 #[cfg(test)]
 mod tests {
-    use crate::dialect::{self, *};
     use crate::query_builder::*;
+    use crate::sql_dialect::{self, *};
 
     struct TestRow {
         abc: i32,
@@ -41,10 +42,10 @@ mod tests {
             .and_where("my_table.col1", "=", "my text".value())
             .or_where("my_table.col1", "=", "my 2".value());
 
-        let s = dialect::postgres::Postgres::init().build_sql(&qb);
+        let s = sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
 
-        println!("{}", s.sql);
-        println!("{:?}", qb.bindings.as_ref().borrow());
+        // println!("{}", s.sql);
+        // println!("{:?}", qb.bindings.as_ref().borrow());
     }
 
     #[test]
@@ -61,10 +62,10 @@ mod tests {
             .and_where("my_table.col1", "=", "my text".value())
             .or_where("my_table.col1", "=", "my 2".value());
 
-        let s = dialect::postgres::Postgres::init().build_sql(&qb);
+        let s = sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
 
-        println!("{}", s.sql);
-        println!("{:?}", qb.bindings.as_ref().borrow());
+        // println!("{}", s.sql);
+        // println!("{:?}", qb.bindings.as_ref().borrow());
     }
 
     #[test]
@@ -77,10 +78,10 @@ mod tests {
             vec![false.value(), "array".value(), "value".value()],
         );
 
-        let s = dialect::postgres::Postgres::init().build_sql(&qb);
+        let s = sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
 
-        println!("{}", s.sql);
-        println!("{:?}", qb.bindings.as_ref().borrow());
+        // println!("{}", s.sql);
+        // println!("{:?}", qb.bindings.as_ref().borrow());
     }
 
     #[test]
@@ -98,10 +99,10 @@ mod tests {
                 });
             });
 
-        let s = dialect::postgres::Postgres::init().build_sql(&qb);
+        let s = sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
 
-        println!("{}", s.sql);
-        println!("{:?}", qb.bindings.as_ref().borrow());
+        // println!("{}", s.sql);
+        // println!("{:?}", qb.bindings.as_ref().borrow());
     }
 
     #[test]
@@ -113,10 +114,10 @@ mod tests {
             .and_where_null("my_column")
             .or_where_null("another_column");
 
-        let s = dialect::postgres::Postgres::init().build_sql(&qb);
+        let s = sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
 
-        println!("{}", s.sql);
-        println!("{:?}", qb.bindings.as_ref().borrow());
+        // println!("{}", s.sql);
+        // println!("{:?}", qb.bindings.as_ref().borrow());
     }
 
     #[test]
@@ -131,10 +132,10 @@ mod tests {
                 .bindings(vec![10.value(), 20.value()]),
         );
 
-        let s = dialect::postgres::Postgres::init().build_sql(&qb);
+        let s = sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
 
-        println!("{}", s.sql);
-        println!("{:?}", qb.bindings.as_ref().borrow());
+        // println!("{}", s.sql);
+        // println!("{:?}", qb.bindings.as_ref().borrow());
     }
 
     #[test]
@@ -164,9 +165,140 @@ mod tests {
             },
         ]);
 
-        let s = dialect::postgres::Postgres::init().build_sql(&qb);
+        let s = sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
 
-        println!("{}", s.sql);
-        println!("{:?}", qb.bindings.as_ref().borrow());
+        // println!("{}", s.sql);
+        // println!("{:?}", qb.bindings.as_ref().borrow());
+    }
+
+    #[test]
+    fn sub_query() {
+        struct TestR {
+            option_column: Option<String>,
+        }
+
+        impl<'a> Row<'a> for TestR {
+            fn columns(&self) -> &'static [&'static str] {
+                &["option_column"]
+            }
+
+            fn into_row(self, builder: &mut RowBuilder<'a>) {
+                builder.append_binding(self.option_column.value());
+            }
+        }
+
+        let mut qb = QueryBuilder::new();
+        let mut sub_qb = QueryBuilder::new();
+
+        sub_qb
+            .select(Some(&["id"]))
+            .from("another_table")
+            .and_where("left", "=", 25.value());
+
+        qb.select(None)
+            .from("table")
+            .and_where("v", "=", 10.value())
+            .and_where("left", "in", sub_qb.clone());
+
+        qb.select(None)
+            .from("table")
+            .and_where("v", "=", 10.value())
+            .and_where("left", "in", sub_qb);
+
+        sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
+
+        // println!("{}", s.sql);
+        // println!("{:?}", qb.bindings.as_ref().borrow());
+    }
+
+    #[test]
+    fn sub_query_2() {
+        struct TestR {
+            option_column: Option<String>,
+        }
+
+        impl<'a> Row<'a> for TestR {
+            fn columns(&self) -> &'static [&'static str] {
+                &["option_column"]
+            }
+
+            fn into_row(self, builder: &mut RowBuilder<'a>) {
+                builder.append_binding(self.option_column.value());
+            }
+        }
+
+        let mut qb = QueryBuilder::new();
+        let mut sub_qb = QueryBuilder::new();
+
+        sub_qb
+            .select(Some(&["id"]))
+            .from("another_table")
+            .and_where("left", "=", 25.value());
+
+        qb.select(None)
+            .from("table")
+            .and_where("v", "=", 10.value())
+            .and_where("left", "in", sub_qb.clone());
+
+        qb.select(None)
+            .from("table")
+            .and_where("v", "=", 10.value())
+            .and_where("left", "in", sub_qb);
+
+        sql_dialect::postgres::PostgresSqlDialect::init().build_sql(&qb);
+
+        // println!("{}", s.sql);
+        // println!("{:?}", qb.bindings.as_ref().borrow());
+    }
+
+    #[test]
+    fn builder() {
+        struct TestR {
+            option_column: Option<String>,
+        }
+
+        impl<'a> Row<'a> for TestR {
+            fn columns(&self) -> &'static [&'static str] {
+                &["option_column"]
+            }
+
+            fn into_row(self, builder: &mut RowBuilder<'a>) {
+                builder.append_binding(self.option_column.value());
+            }
+        }
+
+        let mut qb = QueryBuilder::new();
+        let mut sub_qb = QueryBuilder::new();
+
+        sub_qb
+            .select(Some(&["id"]))
+            .from("another_table")
+            .and_where("left", "=", 25.value());
+
+        let s = qb
+            .select(None)
+            .from("table")
+            .and_where("v", "=", 10.value())
+            .and_where("left", "in", sub_qb)
+            .sql::<sql_dialect::postgres::PostgresSqlDialect>()
+            .into_sqlx_qb()
+            .into_sql();
+
+        println!("{}", s);
     }
 }
+
+// pub trait Qb<'a> {
+//     fn bindings(self, bindings: Vec<&'a Value<'a>>) -> Self;
+// }
+
+// impl<'a> Qb<'a> for sqlx::QueryBuilder<'a, sqlx::Postgres> {
+//     fn bindings(mut self, bindings: Vec<&'a Value<'a>>) -> Self {
+//         bindings.into_iter().for_each(|value| match value {
+//             Value::Integer(v) => self.bind,
+//             _ => unimplemented!("unimpl"),
+//         });
+
+//         self
+//     }
+// }
