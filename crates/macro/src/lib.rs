@@ -14,8 +14,6 @@ pub fn derive_from_row(input: TokenStream) -> TokenStream {
                 quote!(builder.append_binding(self.#name.value()))
             });
 
-            let quote = '"';
-
             let names = fields.named.iter().map(|field| {
                 let name = &field.ident;
                 // quote!(#name: row.try_get(#i)?)
