@@ -27,31 +27,39 @@ impl<'a> QueryBuilder<'a> {
         Self::default()
     }
 
-    pub fn table(&mut self, table: &'a str) -> &mut Self {
+    fn table_internal<T: TryIntoArg<'a>>(&mut self, table: T) {
         match &mut self.query {
             Query::Delete(delete) => {
-                delete.table = Some(Cow::Borrowed(table));
+                delete.table = Some(Rc::new(<T as TryIntoArg>::try_into_arg(table).unwrap()));
             }
             Query::Insert(insert) => {
-                insert.table = Some(Cow::Borrowed(table));
+                insert.table = Some(Rc::new(<T as TryIntoArg>::try_into_arg(table).unwrap()));
             }
             Query::Select(select) => {
-                select.table = Some(Cow::Borrowed(table));
+                select.table = Some(Rc::new(<T as TryIntoArg>::try_into_arg(table).unwrap()));
             }
             Query::Update(update) => {
-                update.table = Some(Cow::Borrowed(table));
+                update.table = Some(Rc::new(<T as TryIntoArg>::try_into_arg(table).unwrap()));
             }
         };
+    }
+
+    pub fn table(&mut self, table: &'a str) -> &mut Self {
+        self.table_internal(table);
 
         self
     }
 
     pub fn into(&mut self, table: &'a str) -> &mut Self {
-        self.table(table)
+        self.table_internal(table);
+
+        self
     }
 
-    pub fn from(&mut self, table: &'a str) -> &mut Self {
-        self.table(table)
+    pub fn from<T: TryIntoArg<'a>>(&mut self, table: T) -> &mut Self {
+        self.table_internal(table);
+
+        self
     }
 
     pub fn select(&mut self, columns: Option<&'a [&'a str]>) -> &mut Self {
@@ -298,21 +306,21 @@ impl<'a> Conditions<'a> for QueryBuilder<'a> {
 
 #[derive(Debug, Clone)]
 pub struct InsertQuery<'a> {
-    pub table: Option<Cow<'a, str>>,
+    pub table: Option<Rc<Arg<'a>>>,
     pub rows: Vec<(usize, usize)>,
     pub ordered_columns: Option<&'static [&'static str]>,
 }
 
 #[derive(Debug, Clone)]
 pub struct UpdateQuery<'a> {
-    pub table: Option<Cow<'a, str>>,
+    pub table: Option<Rc<Arg<'a>>>,
     pub columns: Vec<(Cow<'a, str>, usize)>,
     pub where_clause: Vec<WhereCondition<'a>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct DeleteQuery<'a> {
-    pub table: Option<Cow<'a, str>>,
+    pub table: Option<Rc<Arg<'a>>>,
     pub where_clause: Vec<WhereCondition<'a>>,
 }
 

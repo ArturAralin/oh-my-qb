@@ -54,9 +54,13 @@ pub trait BuildSql<'a> {
                 self.write_char('.');
             }
 
-            self.write_char(Self::RELATION_QUOTE);
-            self.write_str(relation_part);
-            self.write_char(Self::RELATION_QUOTE);
+            if relation_part == "*" {
+                self.write_char('*');
+            } else {
+                self.write_char(Self::RELATION_QUOTE);
+                self.write_str(relation_part);
+                self.write_char(Self::RELATION_QUOTE);
+            }
         }
     }
 
@@ -98,7 +102,7 @@ pub trait BuildSql<'a> {
 
         if let Some(table) = table {
             self.write_str(" from ");
-            self.write_relation(table);
+            self.write_arg(table);
         }
 
         if let Some(joins) = joins {
@@ -144,7 +148,7 @@ pub trait BuildSql<'a> {
 
             if let Some(table) = table {
                 self.write_str(" from ");
-                self.write_relation(table);
+                self.write_arg(table);
             }
 
             self.build_where(where_clause, 0);
@@ -162,7 +166,7 @@ pub trait BuildSql<'a> {
 
             if let Some(table) = table {
                 self.write_char(' ');
-                self.write_relation(table);
+                self.write_arg(table);
             }
 
             self.write_str(" set");
@@ -185,7 +189,7 @@ pub trait BuildSql<'a> {
         }
     }
 
-    fn build_insert(&mut self, qb: &'a QueryBuilder) {
+    fn build_insert(&mut self, qb: &'a QueryBuilder<'a>) {
         if let Query::Insert(InsertQuery {
             ordered_columns,
             rows,
@@ -196,7 +200,7 @@ pub trait BuildSql<'a> {
 
             if let Some(table) = table {
                 self.write_str(" into ");
-                self.write_relation(table);
+                self.write_arg(table.as_ref());
             }
 
             if let Some(ordered_columns) = ordered_columns {
@@ -297,42 +301,23 @@ pub trait BuildSql<'a> {
 
     fn write_arg(&mut self, arg: &'a Arg<'a>) {
         match arg {
-            Arg::Column(c) => {
-                let col =
-                    c.0.split('.')
-                        .map(|col| format!(r#""{col}""#))
-                        .collect::<Vec<_>>()
-                        .join(".");
-
-                self.write_str(col.as_str());
-            }
-            Arg::Value(ArgValue::Binding((start, end))) => {
-                let count = end - start;
-
-                if count > 1 {
-                    self.write_char('(');
-                }
-
-                for (idx, binding_idx) in (*start..*end).enumerate() {
-                    if idx > 0 && count > 1 {
-                        self.write_char(',');
-                        self.write_char(' ');
-                    }
-
-                    self.write_str(format!("${}", binding_idx).as_str())
-                }
-
-                if count > 1 {
-                    self.write_char(')');
-                }
-            }
+            Arg::Relation(rel) => self.write_relation(&rel.0),
             Arg::Value(ArgValue::Value(Value::Null)) => {
                 self.write_str("null");
             }
-            Arg::Value(ArgValue::Value(a)) => {
-                let idx = self.push_binding(a);
+            Arg::Value(ArgValue::Value(value)) => {
+                let idx = self.push_binding(value);
                 self.write_char('$');
                 self.write_str(idx.to_string().as_str());
+            }
+            Arg::Value(ArgValue::Values(v)) => {
+                self.write_char('(');
+                v.iter().for_each(|value| {
+                    let idx = self.push_binding(value);
+                    self.write_char('$');
+                    self.write_str(idx.to_string().as_str());
+                });
+                self.write_char(')');
             }
             Arg::Raw(Raw {
                 sql,
@@ -362,9 +347,6 @@ pub trait BuildSql<'a> {
                     self.write_str(" as ");
                     self.write_relation(alias);
                 }
-            }
-            _ => {
-                unreachable!("Invalid case reached")
             }
         }
     }
@@ -453,6 +435,33 @@ mod test {
             sql.sql,
             r#"select * from "table" left join "another_table" on "table"."id" = "another_table"."t_id""#
         );
+        assert!(sql.bindings.is_empty());
+    }
+
+    #[test]
+    fn sub_query_alias() {
+        let mut sub_qb = QueryBuilder::new();
+        sub_qb.select(None).from("super_table").alias("my_alias");
+
+        let mut qb = QueryBuilder::new();
+        let sql = qb.select(None).from(sub_qb).sql::<TestDialect>();
+
+        assert_eq!(
+            sql.sql,
+            r#"select * from (select * from "super_table") as "my_alias""#
+        );
+        assert!(sql.bindings.is_empty());
+    }
+
+    #[test]
+    fn select_column_asterisk() {
+        let mut qb = QueryBuilder::new();
+        let sql = qb
+            .select(Some(&["my_tbl.*"]))
+            .from("my_tbl")
+            .sql::<TestDialect>();
+
+        assert_eq!(sql.sql, r#"select "my_tbl".* from "my_tbl""#);
         assert!(sql.bindings.is_empty());
     }
 }
