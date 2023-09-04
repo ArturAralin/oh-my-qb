@@ -64,11 +64,7 @@ impl<'a> QueryBuilder<'a> {
         });
         self.query = Query::Select(SelectQuery {
             columns,
-            table: None,
-            joins: None,
-            where_clause: Default::default(),
-            limit: None,
-            offset: None,
+            ..Default::default()
         });
 
         self
@@ -249,6 +245,16 @@ impl<'a> QueryBuilder<'a> {
         right: R,
     ) -> &mut Self {
         self.join_internal(Some("inner"), table, left, op, right);
+
+        self
+    }
+
+    pub fn alias(&mut self, alias: &'a str) -> &mut Self {
+        if let Query::Select(select) = &mut self.query {
+            select.alias = Some(Cow::Borrowed(alias));
+        } else {
+            // todo: error here
+        }
 
         self
     }

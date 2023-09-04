@@ -29,11 +29,11 @@ impl<'a> BuildSql<'a> for PostgresSqlDialect<'a> {
         }
     }
 
-    fn push_sql_char(&mut self, ch: char) {
+    fn write_char(&mut self, ch: char) {
         self.sql.push(ch);
     }
 
-    fn push_sql_str(&mut self, sql: &str) {
+    fn write_str(&mut self, sql: &str) {
         self.sql.push_str(sql);
     }
 

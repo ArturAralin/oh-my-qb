@@ -25,8 +25,8 @@ pub trait BuildSql<'a> {
     fn dialect() -> Dialect;
     fn sql(self) -> Sql<'a>;
 
-    fn push_sql_str(&mut self, sql: &str);
-    fn push_sql_char(&mut self, ch: char);
+    fn write_str(&mut self, sql: &str);
+    fn write_char(&mut self, ch: char);
     fn push_binding(&mut self, value: &'a Value<'a>) -> usize;
 
     fn into_sqlx_qb(self) -> Self::SqlxQb;
@@ -51,12 +51,12 @@ pub trait BuildSql<'a> {
     fn write_relation(&mut self, relation: &str) {
         for (idx, relation_part) in relation.split('.').enumerate() {
             if idx > 0 {
-                self.push_sql_char('.');
+                self.write_char('.');
             }
 
-            self.push_sql_char(Self::RELATION_QUOTE);
-            self.push_sql_str(relation_part);
-            self.push_sql_char(Self::RELATION_QUOTE);
+            self.write_char(Self::RELATION_QUOTE);
+            self.write_str(relation_part);
+            self.write_char(Self::RELATION_QUOTE);
         }
     }
 
@@ -68,21 +68,22 @@ pub trait BuildSql<'a> {
             where_clause,
             limit,
             offset,
+            ..
         } = select;
 
-        self.push_sql_str("select");
+        self.write_str("select");
 
         match columns {
             Some(columns) => {
-                self.push_sql_char(' ');
+                self.write_char(' ');
 
                 if columns.is_empty() {
-                    self.push_sql_char('*');
+                    self.write_char('*');
                 } else {
                     columns.iter().enumerate().for_each(|(idx, column)| {
                         if idx > 0 {
-                            self.push_sql_char(',');
-                            self.push_sql_char(' ');
+                            self.write_char(',');
+                            self.write_char(' ');
                         }
 
                         self.write_relation(column);
@@ -90,13 +91,13 @@ pub trait BuildSql<'a> {
                 }
             }
             None => {
-                self.push_sql_char(' ');
-                self.push_sql_char('*');
+                self.write_char(' ');
+                self.write_char('*');
             }
         }
 
         if let Some(table) = table {
-            self.push_sql_str(" from ");
+            self.write_str(" from ");
             self.write_relation(table);
         }
 
@@ -105,17 +106,17 @@ pub trait BuildSql<'a> {
                 let Join::Regular(join) = join;
 
                 if let Some(join_type) = join.join_type {
-                    self.push_sql_char(' ');
-                    self.push_sql_str(join_type);
+                    self.write_char(' ');
+                    self.write_str(join_type);
                 }
 
-                self.push_sql_str(" join ");
+                self.write_str(" join ");
                 self.write_relation(&join.table);
-                self.push_sql_str(" on ");
+                self.write_str(" on ");
                 self.write_arg(&join.left);
-                self.push_sql_char(' ');
-                self.push_sql_str(&join.op);
-                self.push_sql_char(' ');
+                self.write_char(' ');
+                self.write_str(&join.op);
+                self.write_char(' ');
                 self.write_arg(&join.right);
             });
         }
@@ -123,13 +124,13 @@ pub trait BuildSql<'a> {
         self.build_where(where_clause, 0);
 
         if let Some(limit) = limit {
-            self.push_sql_str(" limit ");
-            self.push_sql_str(limit.to_string().as_str());
+            self.write_str(" limit ");
+            self.write_str(limit.to_string().as_str());
         }
 
         if let Some(offset) = offset {
-            self.push_sql_str(" offset ");
-            self.push_sql_str(offset.to_string().as_str());
+            self.write_str(" offset ");
+            self.write_str(offset.to_string().as_str());
         }
     }
 
@@ -139,10 +140,10 @@ pub trait BuildSql<'a> {
             where_clause,
         }) = &qb.query
         {
-            self.push_sql_str("delete");
+            self.write_str("delete");
 
             if let Some(table) = table {
-                self.push_sql_str(" from ");
+                self.write_str(" from ");
                 self.write_relation(table);
             }
 
@@ -157,27 +158,27 @@ pub trait BuildSql<'a> {
             where_clause,
         }) = &qb.query
         {
-            self.push_sql_str("update");
+            self.write_str("update");
 
             if let Some(table) = table {
-                self.push_sql_char(' ');
+                self.write_char(' ');
                 self.write_relation(table);
             }
 
-            self.push_sql_str(" set");
+            self.write_str(" set");
 
             columns
                 .iter()
                 .enumerate()
                 .for_each(|(idx, (column, binding_idx))| {
                     if idx > 0 {
-                        self.push_sql_char(',');
+                        self.write_char(',');
                     }
 
-                    self.push_sql_char(' ');
-                    self.push_sql_str(column);
-                    self.push_sql_str(" = $");
-                    self.push_sql_str(format!("{}", binding_idx).as_str());
+                    self.write_char(' ');
+                    self.write_str(column);
+                    self.write_str(" = $");
+                    self.write_str(format!("{}", binding_idx).as_str());
                 });
 
             self.build_where(where_clause, 0);
@@ -191,50 +192,50 @@ pub trait BuildSql<'a> {
             table,
         }) = &qb.query
         {
-            self.push_sql_str("insert");
+            self.write_str("insert");
 
             if let Some(table) = table {
-                self.push_sql_str(" into ");
+                self.write_str(" into ");
                 self.write_relation(table);
             }
 
             if let Some(ordered_columns) = ordered_columns {
-                self.push_sql_char(' ');
-                self.push_sql_char('(');
+                self.write_char(' ');
+                self.write_char('(');
 
                 ordered_columns
                     .iter()
                     .enumerate()
                     .for_each(|(idx, column)| {
                         if idx > 0 {
-                            self.push_sql_char(',');
-                            self.push_sql_char(' ');
+                            self.write_char(',');
+                            self.write_char(' ');
                         }
 
-                        self.push_sql_str(format!(r#""{}""#, column).as_str());
+                        self.write_str(format!(r#""{}""#, column).as_str());
                     });
 
-                self.push_sql_char(')');
+                self.write_char(')');
             }
 
             if !rows.is_empty() {
-                self.push_sql_str(" values ");
+                self.write_str(" values ");
 
                 rows.iter().enumerate().for_each(|(row_idx, (start, end))| {
                     if row_idx > 0 {
-                        self.push_sql_char(',');
-                        self.push_sql_char(' ');
+                        self.write_char(',');
+                        self.write_char(' ');
                     }
 
-                    self.push_sql_char('(');
+                    self.write_char('(');
                     for (idx, bind_idx) in ((*start)..(*end)).enumerate() {
                         if idx > 0 {
-                            self.push_sql_char(',');
-                            self.push_sql_char(' ');
+                            self.write_char(',');
+                            self.write_char(' ');
                         }
-                        self.push_sql_str(format!("${}", bind_idx).as_str());
+                        self.write_str(format!("${}", bind_idx).as_str());
                     }
-                    self.push_sql_char(')');
+                    self.write_char(')');
                 });
             }
         }
@@ -242,7 +243,7 @@ pub trait BuildSql<'a> {
 
     fn build_where(&mut self, where_conditions: &'a [WhereCondition<'a>], depth: usize) {
         if !where_conditions.is_empty() && depth == 0 {
-            self.push_sql_str(" where");
+            self.write_str(" where");
         }
 
         where_conditions
@@ -253,18 +254,18 @@ pub trait BuildSql<'a> {
                     if idx > 0 {
                         match op {
                             ConditionOp::And => {
-                                self.push_sql_str(" and");
+                                self.write_str(" and");
                             }
                             ConditionOp::Or => {
-                                self.push_sql_str(" or");
+                                self.write_str(" or");
                             }
                         };
                     }
 
-                    self.push_sql_char(' ');
-                    self.push_sql_char('(');
+                    self.write_char(' ');
+                    self.write_char('(');
                     self.build_where(conditions, depth + 1);
-                    self.push_sql_char(')');
+                    self.write_char(')');
                 }
                 WhereCondition::Single(SingleWhereCondition {
                     op,
@@ -276,19 +277,19 @@ pub trait BuildSql<'a> {
                     if idx > 0 {
                         match op {
                             ConditionOp::And => {
-                                self.push_sql_str(" and");
+                                self.write_str(" and");
                             }
                             ConditionOp::Or => {
-                                self.push_sql_str(" or");
+                                self.write_str(" or");
                             }
                         };
                     }
 
-                    self.push_sql_char(' ');
+                    self.write_char(' ');
                     self.write_arg(left);
-                    self.push_sql_char(' ');
-                    self.push_sql_str(middle);
-                    self.push_sql_char(' ');
+                    self.write_char(' ');
+                    self.write_str(middle);
+                    self.write_char(' ');
                     self.write_arg(right);
                 }
             });
@@ -303,35 +304,35 @@ pub trait BuildSql<'a> {
                         .collect::<Vec<_>>()
                         .join(".");
 
-                self.push_sql_str(col.as_str());
+                self.write_str(col.as_str());
             }
             Arg::Value(ArgValue::Binding((start, end))) => {
                 let count = end - start;
 
                 if count > 1 {
-                    self.push_sql_char('(');
+                    self.write_char('(');
                 }
 
                 for (idx, binding_idx) in (*start..*end).enumerate() {
                     if idx > 0 && count > 1 {
-                        self.push_sql_char(',');
-                        self.push_sql_char(' ');
+                        self.write_char(',');
+                        self.write_char(' ');
                     }
 
-                    self.push_sql_str(format!("${}", binding_idx).as_str())
+                    self.write_str(format!("${}", binding_idx).as_str())
                 }
 
                 if count > 1 {
-                    self.push_sql_char(')');
+                    self.write_char(')');
                 }
             }
             Arg::Value(ArgValue::Value(Value::Null)) => {
-                self.push_sql_str("null");
+                self.write_str("null");
             }
             Arg::Value(ArgValue::Value(a)) => {
                 let idx = self.push_binding(a);
-                self.push_sql_char('$');
-                self.push_sql_str(idx.to_string().as_str());
+                self.write_char('$');
+                self.write_str(idx.to_string().as_str());
             }
             Arg::Raw(Raw {
                 sql,
@@ -343,16 +344,24 @@ pub trait BuildSql<'a> {
                 for ch in sql.chars() {
                     if ch == '?' {
                         idx += 1;
-                        self.push_sql_str(format!("${}", idx).as_str());
+                        self.write_str(format!("${}", idx).as_str());
                     } else {
-                        self.push_sql_char(ch);
+                        self.write_char(ch);
                     }
                 }
             }
-            Arg::SubQuery(x) => {
-                self.push_sql_char('(');
-                self.build_sql(&x.0);
-                self.push_sql_char(')');
+            Arg::SubQuery(sub_query) => {
+                self.write_char('(');
+                self.build_sql(&sub_query.0);
+                self.write_char(')');
+
+                if let Query::Select(SelectQuery {
+                    alias: Some(alias), ..
+                }) = &sub_query.0.query
+                {
+                    self.write_str(" as ");
+                    self.write_relation(alias);
+                }
             }
             _ => {
                 unreachable!("Invalid case reached")
@@ -393,11 +402,11 @@ mod test {
 
         fn into_sqlx_qb(self) -> Self::SqlxQb {}
 
-        fn push_sql_char(&mut self, ch: char) {
+        fn write_char(&mut self, ch: char) {
             self.sql.push(ch);
         }
 
-        fn push_sql_str(&mut self, sql: &str) {
+        fn write_str(&mut self, sql: &str) {
             self.sql.push_str(sql);
         }
 

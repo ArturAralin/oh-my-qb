@@ -11,4 +11,5 @@ pub struct SelectQuery<'a> {
     pub where_clause: Vec<WhereCondition<'a>>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
+    pub alias: Option<Cow<'a, str>>,
 }
