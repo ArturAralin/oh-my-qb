@@ -20,6 +20,31 @@ result.sql // select "table"."column1", "table"."column2" from "table" where "ta
 result.bindings // [Integer(10)]
 ```
 
+## sub query
+```rust
+let mut sub_query = QueryBuilder::new();
+
+sub_query
+  .select(Some(&[
+    "id",
+  ]))
+  .from("table")
+  .and_where("table.type", "=", "my_type".value())
+
+let mut qb = QueryBuilder::new();
+let result = qb
+  .select(Some(&[
+    "table.column1",
+    "table.column2"
+  ]))
+  .from("table")
+  .and_where("table.id", "in", sub_query)
+  .sql::<PostgresSqlDialect>();
+
+result.sql // select "table"."column1", "table"."column2" from "table" where "table"."id" in (select "id" from "table" where "table"."type" = $1)
+result.bindings // [String("my_type")]
+```
+
 ## insert
 ```rust
 #[derive(Row)]
