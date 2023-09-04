@@ -281,7 +281,7 @@ mod tests {
             .from("table")
             .and_where("v", "=", 10.value())
             .and_where("left", "in", sub_qb)
-            .into_sqlx_qb::<sql_dialect::postgres::PostgresSqlDialect>()
+            .sqlx_qb::<sql_dialect::postgres::PostgresSqlDialect>()
             .into_sql();
 
         println!("{}", s);

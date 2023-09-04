@@ -264,7 +264,7 @@ impl<'a> QueryBuilder<'a> {
         builder.sql()
     }
 
-    pub fn into_sqlx_qb<D: BuildSql<'a>>(&'a self) -> D::SqlxQb {
+    pub fn sqlx_qb<D: BuildSql<'a>>(&'a self) -> D::SqlxQb {
         let mut builder = D::init();
 
         builder.build_sql(self);
