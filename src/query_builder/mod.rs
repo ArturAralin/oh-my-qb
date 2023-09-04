@@ -177,8 +177,9 @@ impl<'a> QueryBuilder<'a> {
         self
     }
 
-    pub fn left_join<L: Into<Arg<'a>>, R: Into<Arg<'a>>>(
+    fn join_internal<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
         &mut self,
+        join_type: Option<&'static str>,
         table: &'a str,
         left: L,
         op: &'a str,
@@ -186,11 +187,11 @@ impl<'a> QueryBuilder<'a> {
     ) -> &mut Self {
         if let Query::Select(select) = &mut self.query {
             let join = query::join::Join::Regular(RegularJoin {
-                join_type: Some("left"),
+                join_type,
                 table: Cow::Borrowed(table),
-                left: left.into(),
+                left: <L as TryIntoArg>::try_into_arg(left).unwrap(),
                 op: Cow::Borrowed(op),
-                right: right.into(),
+                right: <R as TryIntoArg>::try_into_arg(right).unwrap(),
             });
             if let Some(joins) = &mut select.joins {
                 joins.push(join)
@@ -204,6 +205,54 @@ impl<'a> QueryBuilder<'a> {
         self
     }
 
+    pub fn join<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
+        &mut self,
+        table: &'a str,
+        left: L,
+        op: &'a str,
+        right: R,
+    ) -> &mut Self {
+        self.join_internal(None, table, left, op, right);
+
+        self
+    }
+
+    pub fn left_join<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
+        &mut self,
+        table: &'a str,
+        left: L,
+        op: &'a str,
+        right: R,
+    ) -> &mut Self {
+        self.join_internal(Some("left"), table, left, op, right);
+
+        self
+    }
+
+    pub fn right_join<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
+        &mut self,
+        table: &'a str,
+        left: L,
+        op: &'a str,
+        right: R,
+    ) -> &mut Self {
+        self.join_internal(Some("right"), table, left, op, right);
+
+        self
+    }
+
+    pub fn inner_join<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
+        &mut self,
+        table: &'a str,
+        left: L,
+        op: &'a str,
+        right: R,
+    ) -> &mut Self {
+        self.join_internal(Some("inner"), table, left, op, right);
+
+        self
+    }
+
     pub fn sql<D>(&'a self) -> Sql<'a>
     where
         D: BuildSql<'a>,
@@ -213,6 +262,14 @@ impl<'a> QueryBuilder<'a> {
         builder.build_sql(self);
 
         builder.sql()
+    }
+
+    pub fn into_sqlx_qb<D: BuildSql<'a>>(&'a self) -> D::SqlxQb {
+        let mut builder = D::init();
+
+        builder.build_sql(self);
+
+        builder.into_sqlx_qb()
     }
 }
 

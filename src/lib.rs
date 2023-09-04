@@ -1,3 +1,4 @@
+pub mod error;
 pub mod prelude;
 mod query_builder;
 pub mod sql_dialect;
@@ -280,8 +281,7 @@ mod tests {
             .from("table")
             .and_where("v", "=", 10.value())
             .and_where("left", "in", sub_qb)
-            .sql::<sql_dialect::postgres::PostgresSqlDialect>()
-            .into_sqlx_qb()
+            .into_sqlx_qb::<sql_dialect::postgres::PostgresSqlDialect>()
             .into_sql();
 
         println!("{}", s);

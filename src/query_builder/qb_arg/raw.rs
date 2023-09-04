@@ -1,4 +1,4 @@
-use super::super::value::Value;
+use super::{super::value::Value, TryIntoArg};
 use std::borrow::Cow;
 
 fn count_bindings(sql: &str) -> usize {
@@ -55,5 +55,13 @@ impl<'a> Raw<'a> {
             .map(|bindings| (start_idx, start_idx + bindings.len()));
 
         self.bindings.take()
+    }
+}
+
+impl<'a> TryIntoArg<'a> for Raw<'a> {
+    type E = crate::error::Error;
+
+    fn try_into_arg(value: Self) -> Result<super::Arg<'a>, Self::E> {
+        Ok(super::Arg::Raw(value))
     }
 }

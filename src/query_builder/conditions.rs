@@ -1,12 +1,11 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use super::value::Value;
-use super::GroupedWhereCondition;
 use super::{
     qb_arg::Arg,
     where_clause::{SingleWhereCondition, WhereCondition},
 };
+use super::{GroupedWhereCondition, TryIntoArg};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum ConditionOp {
@@ -24,7 +23,7 @@ pub trait Conditions<'a> {
     fn push_cond(&mut self, cond: WhereCondition<'a>);
     fn get_bindings(&self) -> Rc<RefCell<Vec<Value<'a>>>>;
 
-    fn and_where<L: Into<Arg<'a>>, R: Into<Arg<'a>>>(
+    fn and_where<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
         &mut self,
         left: L,
         op: &str,
@@ -32,15 +31,15 @@ pub trait Conditions<'a> {
     ) -> &mut Self {
         self.push_cond(WhereCondition::Single(SingleWhereCondition {
             op: ConditionOp::And,
-            left: left.into(),
+            left: <L as TryIntoArg>::try_into_arg(left).unwrap(),
             middle: op.to_owned(),
-            right: right.into(),
+            right: <R as TryIntoArg>::try_into_arg(right).unwrap(),
         }));
 
         self
     }
 
-    fn or_where<L: Into<Arg<'a>>, R: Into<Arg<'a>>>(
+    fn or_where<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
         &mut self,
         left: L,
         op: &str,
@@ -48,9 +47,9 @@ pub trait Conditions<'a> {
     ) -> &mut Self {
         self.push_cond(WhereCondition::Single(SingleWhereCondition {
             op: ConditionOp::Or,
-            left: left.into(),
+            left: <L as TryIntoArg>::try_into_arg(left).unwrap(),
             middle: op.to_owned(),
-            right: right.into(),
+            right: <R as TryIntoArg>::try_into_arg(right).unwrap(),
         }));
 
         self
@@ -94,10 +93,10 @@ pub trait Conditions<'a> {
         self
     }
 
-    fn and_where_null<L: Into<Arg<'a>>>(&mut self, left: L) -> &mut Self {
+    fn and_where_null<L: TryIntoArg<'a>>(&mut self, left: L) -> &mut Self {
         self.push_cond(WhereCondition::Single(SingleWhereCondition {
             op: ConditionOp::And,
-            left: left.into(),
+            left: <L as TryIntoArg>::try_into_arg(left).unwrap(),
             middle: "is".to_owned(),
             right: Arg::Value(super::ArgValue::Value(Value::Null)),
         }));
@@ -105,10 +104,10 @@ pub trait Conditions<'a> {
         self
     }
 
-    fn or_where_null<L: Into<Arg<'a>>>(&mut self, left: L) -> &mut Self {
+    fn or_where_null<L: TryIntoArg<'a>>(&mut self, left: L) -> &mut Self {
         self.push_cond(WhereCondition::Single(SingleWhereCondition {
             op: ConditionOp::Or,
-            left: left.into(),
+            left: <L as TryIntoArg>::try_into_arg(left).unwrap(),
             middle: "is".to_owned(),
             right: Arg::Value(super::ArgValue::Value(Value::Null)),
         }));
@@ -116,10 +115,10 @@ pub trait Conditions<'a> {
         self
     }
 
-    fn and_where_not_null<L: Into<Arg<'a>>>(&mut self, left: L) -> &mut Self {
+    fn and_where_not_null<L: TryIntoArg<'a>>(&mut self, left: L) -> &mut Self {
         self.push_cond(WhereCondition::Single(SingleWhereCondition {
             op: ConditionOp::And,
-            left: left.into(),
+            left: <L as TryIntoArg>::try_into_arg(left).unwrap(),
             middle: "is not".to_owned(),
             right: Arg::Value(super::ArgValue::Value(Value::Null)),
         }));
@@ -127,10 +126,10 @@ pub trait Conditions<'a> {
         self
     }
 
-    fn or_where_not_null<L: Into<Arg<'a>>>(&mut self, left: L) -> &mut Self {
+    fn or_where_not_null<L: TryIntoArg<'a>>(&mut self, left: L) -> &mut Self {
         self.push_cond(WhereCondition::Single(SingleWhereCondition {
             op: ConditionOp::Or,
-            left: left.into(),
+            left: <L as TryIntoArg>::try_into_arg(left).unwrap(),
             middle: "is not".to_owned(),
             right: Arg::Value(super::ArgValue::Value(Value::Null)),
         }));

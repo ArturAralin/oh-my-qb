@@ -1,5 +1,7 @@
 use std::borrow::Cow;
 
+use super::{Arg, ArgValue, TryIntoArg};
+
 #[derive(Debug, Clone)]
 pub enum Value<'a> {
     String(Cow<'a, str>),
@@ -82,5 +84,13 @@ impl<'a, T: Into<Value<'a>>> From<Option<T>> for Value<'a> {
             Some(value) => value.into(),
             None => Value::Null,
         }
+    }
+}
+
+impl<'a> TryIntoArg<'a> for Value<'a> {
+    type E = crate::error::Error;
+
+    fn try_into_arg(value: Self) -> Result<Arg<'a>, Self::E> {
+        Ok(Arg::Value(ArgValue::Value(value)))
     }
 }

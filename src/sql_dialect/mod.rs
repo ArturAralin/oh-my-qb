@@ -1,10 +1,8 @@
 pub mod postgres;
-
 use crate::query_builder::{
     Arg, ArgValue, ConditionOp, DeleteQuery, GroupedWhereCondition, InsertQuery, Join, Query,
     QueryBuilder, Raw, SelectQuery, SingleWhereCondition, UpdateQuery, Value, WhereCondition,
 };
-use sqlx::Arguments;
 
 #[derive(Debug)]
 pub enum Dialect {
@@ -19,26 +17,9 @@ pub struct Sql<'a> {
     pub dialect: Dialect,
 }
 
-impl<'a> Sql<'a> {
-    // feature postgres and sqlx
-    pub fn into_sqlx_qb(self) -> sqlx::QueryBuilder<'a, sqlx::Postgres> {
-        let mut args = sqlx::postgres::PgArguments::default();
-
-        self.bindings.into_iter().for_each(|binding| match binding {
-            Value::Integer(v) => args.add(v),
-            Value::BigInt(v) => args.add(v),
-            // todo: check it
-            Value::Null => args.add::<Option<i32>>(None),
-            Value::String(s) => args.add(s),
-            _ => panic!("unsuppoted"),
-        });
-
-        sqlx::QueryBuilder::with_arguments(self.sql, args)
-    }
-}
-
 pub trait BuildSql<'a> {
     const RELATION_QUOTE: char;
+    type SqlxQb;
 
     fn init() -> Self;
     fn dialect() -> Dialect;
@@ -47,6 +28,8 @@ pub trait BuildSql<'a> {
     fn push_sql_str(&mut self, sql: &str);
     fn push_sql_char(&mut self, ch: char);
     fn push_binding(&mut self, value: &'a Value<'a>) -> usize;
+
+    fn into_sqlx_qb(self) -> Self::SqlxQb;
 
     fn build_sql(&mut self, qb: &'a QueryBuilder<'a>) {
         match &qb.query {
@@ -390,6 +373,7 @@ mod test {
 
     impl<'a> BuildSql<'a> for TestDialect<'a> {
         const RELATION_QUOTE: char = '"';
+        type SqlxQb = ();
 
         fn init() -> Self {
             Self::default()
@@ -406,6 +390,8 @@ mod test {
                 dialect: Self::dialect(),
             }
         }
+
+        fn into_sqlx_qb(self) -> Self::SqlxQb {}
 
         fn push_sql_char(&mut self, ch: char) {
             self.sql.push(ch);
