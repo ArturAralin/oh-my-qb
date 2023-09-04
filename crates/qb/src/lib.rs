@@ -1,3 +1,7 @@
+// extern crate proc_macro;
+// extern crate quote;
+// extern crate syn;
+
 pub mod error;
 pub mod prelude;
 mod query_builder;
@@ -10,23 +14,13 @@ pub use query_builder::ValueExt;
 
 #[cfg(test)]
 mod tests {
-    use crate::query_builder::*;
     use crate::sql_dialect::{self, *};
+    use crate::{prelude::*, RawExt};
 
+    #[derive(unnamed_qb_macro::Row)]
     struct TestRow {
         abc: i32,
         my_string: String,
-    }
-
-    impl<'a> Row<'a> for TestRow {
-        fn columns(&self) -> &'static [&'static str] {
-            &["abc", "my_string"]
-        }
-
-        fn into_row(self, builder: &mut RowBuilder<'a>) {
-            builder.append_binding(self.abc.value());
-            builder.append_binding(self.my_string.value());
-        }
     }
 
     #[test]
@@ -144,18 +138,9 @@ mod tests {
 
     #[test]
     fn option_handling() {
+        #[derive(unnamed_qb_macro::Row)]
         struct TestR {
             option_column: Option<String>,
-        }
-
-        impl<'a> Row<'a> for TestR {
-            fn columns(&self) -> &'static [&'static str] {
-                &["option_column"]
-            }
-
-            fn into_row(self, builder: &mut RowBuilder<'a>) {
-                builder.append_binding(self.option_column.value());
-            }
         }
 
         let mut qb = QueryBuilder::new();
@@ -174,18 +159,9 @@ mod tests {
 
     #[test]
     fn sub_query() {
+        #[derive(unnamed_qb_macro::Row)]
         struct TestR {
             option_column: Option<String>,
-        }
-
-        impl<'a> Row<'a> for TestR {
-            fn columns(&self) -> &'static [&'static str] {
-                &["option_column"]
-            }
-
-            fn into_row(self, builder: &mut RowBuilder<'a>) {
-                builder.append_binding(self.option_column.value());
-            }
         }
 
         let mut qb = QueryBuilder::new();
@@ -214,18 +190,9 @@ mod tests {
 
     #[test]
     fn sub_query_2() {
+        #[derive(unnamed_qb_macro::Row)]
         struct TestR {
             option_column: Option<String>,
-        }
-
-        impl<'a> Row<'a> for TestR {
-            fn columns(&self) -> &'static [&'static str] {
-                &["option_column"]
-            }
-
-            fn into_row(self, builder: &mut RowBuilder<'a>) {
-                builder.append_binding(self.option_column.value());
-            }
         }
 
         let mut qb = QueryBuilder::new();
@@ -254,18 +221,9 @@ mod tests {
 
     #[test]
     fn builder() {
+        #[derive(unnamed_qb_macro::Row)]
         struct TestR {
             option_column: Option<String>,
-        }
-
-        impl<'a> Row<'a> for TestR {
-            fn columns(&self) -> &'static [&'static str] {
-                &["option_column"]
-            }
-
-            fn into_row(self, builder: &mut RowBuilder<'a>) {
-                builder.append_binding(self.option_column.value());
-            }
         }
 
         let mut qb = QueryBuilder::new();

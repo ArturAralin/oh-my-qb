@@ -1,0 +1,11 @@
+[package]
+name = "unnamed-qb-macro"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+quote = { version = "1.0" }
+syn = { version = "2.0" }
+
+[lib]
+proc-macro = true

@@ -1,7 +1,6 @@
-[package]
-name = "unnamed-qb"
-version = "0.1.0"
-edition = "2021"
+[workspace]
 
-[dependencies]
-sqlx = { version = "0.7.1", features = ["postgres"] }
+members = [
+    "crates/qb",
+    "crates/macro"
+]
