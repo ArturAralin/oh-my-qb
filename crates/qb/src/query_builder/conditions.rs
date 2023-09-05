@@ -4,8 +4,6 @@ use super::{
     where_clause::{SingleWhereCondition, WhereCondition},
 };
 use super::{GroupedWhereCondition, TryIntoArg};
-use std::cell::RefCell;
-use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum ConditionOp {
@@ -14,14 +12,18 @@ pub enum ConditionOp {
 }
 
 pub struct GroupBuilder<'a> {
-    bindings: Rc<RefCell<Vec<Value<'a>>>>,
+    // bindings: Rc<RefCell<Vec<Value<'a>>>>,
     group: GroupedWhereCondition<'a>,
 }
 
-pub trait Conditions<'a> {
-    // todo: move to another trait ConditionsInternal
+pub trait PushCondition<'a> {
     fn push_cond(&mut self, cond: WhereCondition<'a>);
-    fn get_bindings(&self) -> Rc<RefCell<Vec<Value<'a>>>>;
+}
+
+pub trait Conditions<'a>: PushCondition<'a> {
+    // todo: move to another trait ConditionsInternal
+
+    // fn get_bindings(&self) -> Rc<RefCell<Vec<Value<'a>>>>;
 
     fn and_where<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
         &mut self,
@@ -57,19 +59,16 @@ pub trait Conditions<'a> {
 
     fn and_where_grouped<F>(&mut self, f: F) -> &mut Self
     where
-        F: FnOnce(&mut GroupBuilder<'a>),
+        F: FnOnce(&mut GroupedWhereCondition<'a>),
     {
-        let mut group_builder = GroupBuilder {
-            group: GroupedWhereCondition {
-                op: ConditionOp::And,
-                conditions: vec![],
-            },
-            bindings: self.get_bindings(),
+        let mut condition = GroupedWhereCondition {
+            op: ConditionOp::And,
+            conditions: vec![],
         };
 
-        f(&mut group_builder);
+        f(&mut condition);
 
-        self.push_cond(WhereCondition::Group(group_builder.group));
+        self.push_cond(WhereCondition::Group(condition));
 
         self
     }
@@ -83,7 +82,7 @@ pub trait Conditions<'a> {
                 op: ConditionOp::Or,
                 conditions: vec![],
             },
-            bindings: self.get_bindings(),
+            // bindings: self.get_bindings(),
         };
 
         f(&mut group_builder);
@@ -138,10 +137,10 @@ pub trait Conditions<'a> {
     }
 }
 
-impl<'a> Conditions<'a> for GroupBuilder<'a> {
-    fn get_bindings(&self) -> Rc<RefCell<Vec<Value<'a>>>> {
-        Rc::clone(&self.bindings)
-    }
+impl<'a> PushCondition<'a> for GroupBuilder<'a> {
+    // fn get_bindings(&self) -> Rc<RefCell<Vec<Value<'a>>>> {
+    //     Rc::clone(&self.bindings)
+    // }
 
     fn push_cond(&mut self, cond: WhereCondition<'a>) {
         self.group.conditions.push(cond);

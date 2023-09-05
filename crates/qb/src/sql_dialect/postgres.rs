@@ -1,4 +1,4 @@
-use super::BuildSql;
+use super::SqlDialect;
 use crate::query_builder::*;
 use sqlx::Arguments;
 
@@ -8,7 +8,7 @@ pub struct PostgresSqlDialect<'a> {
     pub bindings: Vec<&'a Value<'a>>,
 }
 
-impl<'a> BuildSql<'a> for PostgresSqlDialect<'a> {
+impl<'a> SqlDialect<'a> for PostgresSqlDialect<'a> {
     const RELATION_QUOTE: char = '"';
 
     type SqlxQb = sqlx::QueryBuilder<'a, sqlx::postgres::Postgres>;

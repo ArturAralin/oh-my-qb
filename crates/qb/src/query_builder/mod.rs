@@ -5,10 +5,9 @@ mod row;
 mod value;
 mod where_clause;
 
-use self::query::join::RegularJoin;
 pub use self::query::join::*;
 pub use self::query::select::*;
-use crate::sql_dialect::{BuildSql, Sql};
+use crate::sql_dialect::{Sql, SqlDialect};
 pub use conditions::*;
 pub use qb_arg::*;
 pub use row::*;
@@ -76,6 +75,10 @@ impl<'a> QueryBuilder<'a> {
         });
 
         self
+    }
+
+    pub fn select_<'b>() -> SelectQuery<'b> {
+        SelectQuery::default()
     }
 
     pub fn delete(&mut self) -> &mut Self {
@@ -158,115 +161,9 @@ impl<'a> QueryBuilder<'a> {
         self
     }
 
-    pub fn limit(&mut self, limit: usize) -> &mut Self {
-        if let Query::Select(select) = &mut self.query {
-            select.limit = Some(limit);
-        } else {
-            // todo: error here
-        }
-
-        self
-    }
-
-    pub fn offset(&mut self, offset: usize) -> &mut Self {
-        if let Query::Select(select) = &mut self.query {
-            select.offset = Some(offset);
-        } else {
-            // todo: error here
-        }
-
-        self
-    }
-
-    fn join_internal<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
-        &mut self,
-        join_type: Option<&'static str>,
-        table: &'a str,
-        left: L,
-        op: &'a str,
-        right: R,
-    ) -> &mut Self {
-        if let Query::Select(select) = &mut self.query {
-            let join = query::join::Join::Regular(RegularJoin {
-                join_type,
-                table: Cow::Borrowed(table),
-                left: <L as TryIntoArg>::try_into_arg(left).unwrap(),
-                op: Cow::Borrowed(op),
-                right: <R as TryIntoArg>::try_into_arg(right).unwrap(),
-            });
-            if let Some(joins) = &mut select.joins {
-                joins.push(join)
-            } else {
-                select.joins = Some(vec![join]);
-            }
-        } else {
-            // todo: error here
-        }
-
-        self
-    }
-
-    pub fn join<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
-        &mut self,
-        table: &'a str,
-        left: L,
-        op: &'a str,
-        right: R,
-    ) -> &mut Self {
-        self.join_internal(None, table, left, op, right);
-
-        self
-    }
-
-    pub fn left_join<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
-        &mut self,
-        table: &'a str,
-        left: L,
-        op: &'a str,
-        right: R,
-    ) -> &mut Self {
-        self.join_internal(Some("left"), table, left, op, right);
-
-        self
-    }
-
-    pub fn right_join<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
-        &mut self,
-        table: &'a str,
-        left: L,
-        op: &'a str,
-        right: R,
-    ) -> &mut Self {
-        self.join_internal(Some("right"), table, left, op, right);
-
-        self
-    }
-
-    pub fn inner_join<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
-        &mut self,
-        table: &'a str,
-        left: L,
-        op: &'a str,
-        right: R,
-    ) -> &mut Self {
-        self.join_internal(Some("inner"), table, left, op, right);
-
-        self
-    }
-
-    pub fn alias(&mut self, alias: &'a str) -> &mut Self {
-        if let Query::Select(select) = &mut self.query {
-            select.alias = Some(Cow::Borrowed(alias));
-        } else {
-            // todo: error here
-        }
-
-        self
-    }
-
     pub fn sql<D>(&'a self) -> Sql<'a>
     where
-        D: BuildSql<'a>,
+        D: SqlDialect<'a>,
     {
         let mut builder = D::init();
 
@@ -275,7 +172,7 @@ impl<'a> QueryBuilder<'a> {
         builder.sql()
     }
 
-    pub fn sqlx_qb<D: BuildSql<'a>>(&'a self) -> D::SqlxQb {
+    pub fn sqlx_qb<D: SqlDialect<'a>>(&'a self) -> D::SqlxQb {
         let mut builder = D::init();
 
         builder.build_sql(self);
@@ -284,20 +181,16 @@ impl<'a> QueryBuilder<'a> {
     }
 }
 
-impl<'a> Conditions<'a> for QueryBuilder<'a> {
+impl<'a> PushCondition<'a> for QueryBuilder<'a> {
     fn push_cond(&mut self, cond: WhereCondition<'a>) {
         match &mut self.query {
-            Query::Select(query) => query.where_clause.push(cond),
+            Query::Select(query) => query.where_.push(cond),
             Query::Update(query) => query.where_clause.push(cond),
             Query::Delete(query) => query.where_clause.push(cond),
             _ => {
                 unimplemented!("where unsupported yet");
             }
         }
-    }
-
-    fn get_bindings(&self) -> Rc<RefCell<Vec<Value<'a>>>> {
-        Rc::clone(&self.bindings)
     }
 }
 

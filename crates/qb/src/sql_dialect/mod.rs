@@ -17,7 +17,7 @@ pub struct Sql<'a> {
     pub dialect: Dialect,
 }
 
-pub trait BuildSql<'a> {
+pub trait SqlDialect<'a> {
     const RELATION_QUOTE: char;
     type SqlxQb;
 
@@ -70,7 +70,7 @@ pub trait BuildSql<'a> {
             columns,
             table,
             joins,
-            where_clause,
+            where_: where_clause,
             limit,
             offset,
             ..
@@ -262,7 +262,7 @@ pub trait BuildSql<'a> {
 
     fn build_where(&mut self, where_conditions: &'a [WhereCondition<'a>], depth: usize) {
         if !where_conditions.is_empty() && depth == 0 {
-            self.write_str(" where");
+            self.write_str(" where ");
         }
 
         where_conditions
@@ -281,10 +281,13 @@ pub trait BuildSql<'a> {
                         };
                     }
 
-                    self.write_char(' ');
-                    self.write_char('(');
-                    self.build_where(conditions, depth + 1);
-                    self.write_char(')');
+                    if conditions.len() == 1 {
+                        self.build_where(conditions, depth + 1);
+                    } else {
+                        self.write_char('(');
+                        self.build_where(conditions, depth + 1);
+                        self.write_char(')');
+                    }
                 }
                 WhereCondition::Single(SingleWhereCondition {
                     op,
@@ -302,9 +305,9 @@ pub trait BuildSql<'a> {
                                 self.write_str(" or");
                             }
                         };
+                        self.write_char(' ');
                     }
 
-                    self.write_char(' ');
                     self.write_arg(left);
                     self.write_char(' ');
                     self.write_str(middle);
@@ -352,13 +355,10 @@ pub trait BuildSql<'a> {
             }
             Arg::SubQuery(sub_query) => {
                 self.write_char('(');
-                self.build_sql(&sub_query.0);
+                self.build_select(&sub_query.0);
                 self.write_char(')');
 
-                if let Query::Select(SelectQuery {
-                    alias: Some(alias), ..
-                }) = &sub_query.0.query
-                {
+                if let Some(alias) = &sub_query.0.alias {
                     self.write_str(" as ");
                     self.write_relation(alias);
                 }
@@ -369,16 +369,18 @@ pub trait BuildSql<'a> {
 
 #[cfg(test)]
 mod test {
-    use super::BuildSql;
+    use super::SqlDialect;
     use crate::{prelude::*, query_builder::Value};
+
     #[derive(Debug, Default)]
     pub struct TestDialect<'a> {
         pub sql: String,
         pub bindings: Vec<&'a Value<'a>>,
     }
 
-    impl<'a> BuildSql<'a> for TestDialect<'a> {
+    impl<'a> SqlDialect<'a> for TestDialect<'a> {
         const RELATION_QUOTE: char = '"';
+
         type SqlxQb = ();
 
         fn init() -> Self {
@@ -419,11 +421,57 @@ mod test {
 
     #[test]
     fn select_all() {
-        let mut qb = QueryBuilder::new();
-        let sql = qb.select(None).from("table").sql::<TestDialect>();
+        let mut select = QueryBuilder::select_();
+        let sql = select.columns(None).from("table").sql::<TestDialect>();
 
         assert_eq!(sql.sql, r#"select * from "table""#);
         assert!(sql.bindings.is_empty());
+    }
+
+    #[test]
+    fn select_where() {
+        let mut select = QueryBuilder::select_();
+        let sql = select
+            .columns(None)
+            .from("table")
+            .and_where("my_column", "=", 100.value())
+            .sql::<TestDialect>();
+
+        assert_eq!(sql.sql, r#"select * from "table" where "my_column" = $1"#);
+        assert_eq!(sql.bindings.len(), 1);
+    }
+
+    #[test]
+    fn select_groped_where() {
+        let mut select = QueryBuilder::select_();
+        let sql = select
+            .columns(None)
+            .from("table")
+            .and_where_grouped(|where_qb| {
+                where_qb.and_where("a", "=", "b").and_where("b", "<>", "c");
+            })
+            .sql::<TestDialect>();
+
+        assert_eq!(
+            sql.sql,
+            r#"select * from "table" where ("a" = "b" and "b" <> "c")"#
+        );
+        assert_eq!(sql.bindings.len(), 0);
+    }
+
+    #[test]
+    fn select_groped_where_when_single_cond() {
+        let mut select = QueryBuilder::select_();
+        let sql = select
+            .columns(None)
+            .from("table")
+            .and_where_grouped(|where_qb| {
+                where_qb.and_where("a", "=", "b");
+            })
+            .sql::<TestDialect>();
+
+        assert_eq!(sql.sql, r#"select * from "table" where "a" = "b""#);
+        assert_eq!(sql.bindings.len(), 0);
     }
 
     #[test]
@@ -442,10 +490,9 @@ mod test {
     }
 
     #[test]
-    fn regular_join() {
-        let mut qb = QueryBuilder::new();
+    fn left_join() {
+        let mut qb = QueryBuilder::select_();
         let sql = qb
-            .select(None)
             .from("table")
             .left_join("another_table", "table.id", "=", "another_table.t_id")
             .sql::<TestDialect>();
@@ -459,11 +506,11 @@ mod test {
 
     #[test]
     fn sub_query_alias() {
-        let mut sub_qb = QueryBuilder::new();
-        sub_qb.select(None).from("super_table").alias("my_alias");
+        let mut sub_qb = QueryBuilder::select_();
+        sub_qb.from("super_table").alias("my_alias");
 
-        let mut qb = QueryBuilder::new();
-        let sql = qb.select(None).from(sub_qb).sql::<TestDialect>();
+        let mut qb = QueryBuilder::select_();
+        let sql = qb.from(sub_qb).sql::<TestDialect>();
 
         assert_eq!(
             sql.sql,

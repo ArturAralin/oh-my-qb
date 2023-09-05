@@ -1,4 +1,6 @@
-use super::{conditions::ConditionOp, qb_arg::Arg};
+use crate::Conditions;
+
+use super::{conditions::ConditionOp, qb_arg::Arg, PushCondition};
 
 #[derive(Debug, Clone)]
 pub struct SingleWhereCondition<'a> {
@@ -28,3 +30,11 @@ impl<'a> GroupedWhereCondition<'a> {
         }
     }
 }
+
+impl<'a> PushCondition<'a> for GroupedWhereCondition<'a> {
+    fn push_cond(&mut self, cond: WhereCondition<'a>) {
+        self.conditions.push(cond);
+    }
+}
+
+impl<'a> Conditions<'a> for GroupedWhereCondition<'a> {}
