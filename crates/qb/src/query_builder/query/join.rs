@@ -1,6 +1,5 @@
-use std::borrow::Cow;
-
 use crate::query_builder::Arg;
+use std::borrow::Cow;
 
 #[derive(Debug, Clone)]
 pub struct RegularJoin<'a> {

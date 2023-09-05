@@ -1,7 +1,7 @@
 pub mod postgres;
 use crate::query_builder::{
-    Arg, ArgValue, ConditionOp, DeleteQuery, GroupedWhereCondition, InsertQuery, Join, Query,
-    QueryBuilder, Raw, SelectQuery, SingleWhereCondition, UpdateQuery, Value, WhereCondition,
+    Arg, ArgValue, ConditionOp, DeleteQuery, GroupedWhereCondition, InsertQuery, Join, Raw,
+    SelectQuery, SingleWhereCondition, UpdateQuery, Value, WhereCondition,
 };
 
 #[derive(Debug)]
@@ -31,23 +31,6 @@ pub trait SqlDialect<'a> {
     fn extend_bindings(&mut self, bindings: impl IntoIterator<Item = &'a Value<'a>>);
 
     fn into_sqlx_qb(self) -> Self::SqlxQb;
-
-    fn build_sql(&mut self, qb: &'a QueryBuilder<'a>) {
-        match &qb.query {
-            Query::Select(select) => {
-                self.build_select(select);
-            }
-            Query::Delete(qb) => {
-                self.build_delete(qb);
-            }
-            Query::Insert(qb) => {
-                self.build_insert(qb);
-            }
-            Query::Update(_) => {
-                self.build_update(qb);
-            }
-        }
-    }
 
     fn write_relation(&mut self, relation: &str) {
         for (idx, relation_part) in relation.split('.').enumerate() {
@@ -150,40 +133,30 @@ pub trait SqlDialect<'a> {
         self.build_where(&qb.where_clause, 0);
     }
 
-    fn build_update(&mut self, qb: &'a QueryBuilder<'a>) {
-        if let Query::Update(UpdateQuery {
-            columns,
-            values,
-            table,
-            where_clause,
-        }) = &qb.query
-        {
-            values.iter().for_each(|value| {
-                self.push_binding(value);
-            });
+    fn build_update(&mut self, qb: &'a UpdateQuery<'a>) {
+        self.extend_bindings(&qb.values);
 
-            self.write_str("update");
+        self.write_str("update");
 
-            if let Some(table) = table {
-                self.write_char(' ');
-                self.write_arg(table);
+        if let Some(table) = &qb.table {
+            self.write_char(' ');
+            self.write_relation(table);
+        }
+
+        self.write_str(" set");
+
+        qb.columns.iter().enumerate().for_each(|(idx, column)| {
+            if idx > 0 {
+                self.write_char(',');
             }
 
-            self.write_str(" set");
+            self.write_char(' ');
+            self.write_relation(column);
+            self.write_str(" = $");
+            self.write_str((idx + 1).to_string().as_str());
+        });
 
-            columns.iter().enumerate().for_each(|(idx, column)| {
-                if idx > 0 {
-                    self.write_char(',');
-                }
-
-                self.write_char(' ');
-                self.write_relation(column);
-                self.write_str(" = $");
-                self.write_str((idx + 1).to_string().as_str());
-            });
-
-            self.build_where(where_clause, 0);
-        }
+        self.build_where(&qb.where_clause, 0);
     }
 
     fn build_insert(&mut self, qb: &'a InsertQuery<'a>) {
@@ -535,8 +508,8 @@ mod test {
             d: None,
         };
 
-        let mut qb = QueryBuilder::new();
-        let sql = qb.update(r).table("my_tbl").sql::<TestDialect>();
+        let mut qb = QueryBuilder::update(r);
+        let sql = qb.table("my_tbl").sql::<TestDialect>();
 
         assert_eq!(
             sql.sql,
