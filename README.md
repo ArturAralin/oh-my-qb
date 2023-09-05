@@ -6,12 +6,12 @@ Query builder inspired by Knex.js.
 
 ## select
 ```rust
-let mut qb = QueryBuilder::new();
+let mut qb = QueryBuilder::select();
 let result = qb
-  .select(Some(&[
+  .columns(&[
     "table.column1",
     "table.column2"
-  ]))
+  ])
   .from("table")
   .and_where("table.id", "=", 10.value())
   .sql::<PostgresSqlDialect>();
@@ -22,21 +22,21 @@ result.bindings // [Integer(10)]
 
 ## sub query
 ```rust
-let mut sub_query = QueryBuilder::new();
+let mut sub_query = QueryBuilder::select();
 
 sub_query
-  .select(Some(&[
+  .columns(&[
     "id",
-  ]))
+  ])
   .from("table")
   .and_where("table.type", "=", "my_type".value())
 
-let mut qb = QueryBuilder::new();
+let mut qb = QueryBuilder::select();
 let result = qb
-  .select(Some(&[
+  .columns(&[
     "table.column1",
     "table.column2"
-  ]))
+  ])
   .from("table")
   .and_where("table.id", "in", sub_query)
   .sql::<PostgresSqlDialect>();
@@ -53,10 +53,9 @@ struct MyRow {
   b: i32
 }
 
-let mut qb = QueryBuilder::new();
+let mut qb = QueryBuilder::insert();
 let result = qb
-  .insert()
-  .into("table")
+  .into_("table")
   .value(MyRow { a: "abc".to_owned(), b: 10 })
   .sql::<PostgresSqlDialect>();
 
@@ -66,12 +65,12 @@ result.bindings // [String("abc"), Integer(10)]
 
 # sqlx integration
 ```rust
-let mut qb = QueryBuilder::new();
+let mut qb = QueryBuilder::select();
 let sql = qb
-  .select(Some(&[
+  .columns(&[
     "table.column1",
     "table.column2"
-  ]))
+  ])
   .from("table")
   .and_where("table.id", "=", 10.value())
   .sqlx_qb::<PostgresSqlDialect>() // here sqlx::QueryBuilder<'_, Postgres>
