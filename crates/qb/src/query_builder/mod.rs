@@ -90,7 +90,8 @@ impl<'a> QueryBuilder<'a> {
     pub fn insert(&mut self) -> &mut Self {
         self.query = Query::Insert(InsertQuery {
             table: None,
-            rows: Default::default(),
+            // rows: Default::default(),
+            values: Default::default(),
             ordered_columns: Default::default(),
         });
 
@@ -98,22 +99,18 @@ impl<'a> QueryBuilder<'a> {
     }
 
     pub fn update<R: Row<'a>>(&mut self, row: R) -> &mut Self {
-        let columns = row.columns();
-        let mut builder = RowBuilder::new(&self.bindings);
-        row.into_row(&mut builder);
+        let mut builder = RowBuilder::default();
 
-        let (mut start, _) = builder.into_slice();
-
-        let columns = columns
+        let columns = R::columns()
             .iter()
-            .map(|col| {
-                start += 1;
-                (Cow::Borrowed(*col), start)
-            })
-            .collect::<Vec<_>>();
+            .map(|column| Cow::Borrowed(*column))
+            .collect();
+
+        row.into_row(&mut builder);
 
         self.query = Query::Update(UpdateQuery {
             columns,
+            values: builder.values,
             table: None,
             where_clause: Default::default(),
         });
@@ -122,41 +119,41 @@ impl<'a> QueryBuilder<'a> {
     }
 
     pub fn value<R: Row<'a>>(&mut self, row: R) -> &mut Self {
-        let mut builder = RowBuilder::new(&self.bindings);
-        let columns = row.columns();
+        let mut builder = RowBuilder::default();
 
         row.into_row(&mut builder);
 
         if let Query::Insert(InsertQuery {
-            rows,
+            values,
             ordered_columns,
             ..
         }) = &mut self.query
         {
-            *ordered_columns = Some(columns);
-            rows.push(builder.into_slice());
+            *ordered_columns = Some(R::columns());
+            values.extend(builder.values);
         }
 
         self
     }
 
-    pub fn values<R: Row<'a>>(&mut self, rows: Vec<R>) -> &mut Self {
-        let columns = rows[0].columns();
+    pub fn values<R: Row<'a>>(&mut self, rows: impl IntoIterator<Item = R>) -> &mut Self {
+        if let Query::Insert(InsertQuery {
+            values,
+            ordered_columns,
+            ..
+        }) = &mut self.query
+        {
+            *ordered_columns = Some(R::columns());
 
-        rows.into_iter().for_each(|row| {
-            let mut builder = RowBuilder::new(&self.bindings);
-            row.into_row(&mut builder);
+            for row in rows.into_iter() {
+                let mut builder = RowBuilder::default();
+                row.into_row(&mut builder);
 
-            if let Query::Insert(InsertQuery {
-                rows,
-                ordered_columns,
-                ..
-            }) = &mut self.query
-            {
-                *ordered_columns = Some(columns);
-                rows.push(builder.into_slice());
+                values.extend(builder.values);
             }
-        });
+        } else {
+            // return error
+        }
 
         self
     }
@@ -307,14 +304,15 @@ impl<'a> Conditions<'a> for QueryBuilder<'a> {
 #[derive(Debug, Clone)]
 pub struct InsertQuery<'a> {
     pub table: Option<Rc<Arg<'a>>>,
-    pub rows: Vec<(usize, usize)>,
     pub ordered_columns: Option<&'static [&'static str]>,
+    pub values: Vec<Value<'a>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct UpdateQuery<'a> {
     pub table: Option<Rc<Arg<'a>>>,
-    pub columns: Vec<(Cow<'a, str>, usize)>,
+    pub columns: Vec<Cow<'a, str>>,
+    pub values: Vec<Value<'a>>,
     pub where_clause: Vec<WhereCondition<'a>>,
 }
 

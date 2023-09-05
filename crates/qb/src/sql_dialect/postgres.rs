@@ -33,13 +33,17 @@ impl<'a> BuildSql<'a> for PostgresSqlDialect<'a> {
         self.sql.push(ch);
     }
 
-    fn write_str(&mut self, sql: &str) {
-        self.sql.push_str(sql);
+    fn write_str<S: AsRef<str>>(&mut self, sql: S) {
+        self.sql.push_str(sql.as_ref());
     }
 
     fn push_binding(&mut self, value: &'a Value<'a>) -> usize {
         self.bindings.push(value);
         self.bindings.len()
+    }
+
+    fn extend_bindings(&mut self, bindings: impl IntoIterator<Item = &'a Value<'a>>) {
+        self.bindings.extend(bindings);
     }
 
     fn into_sqlx_qb(self) -> Self::SqlxQb {

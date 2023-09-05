@@ -10,13 +10,11 @@ pub fn derive_from_row(input: TokenStream) -> TokenStream {
         if let Fields::Named(ref fields) = data.fields {
             let builder_fileds = fields.named.iter().map(|field| {
                 let name = &field.ident;
-                // quote!(#name: row.try_get(#i)?)
                 quote!(builder.append_binding(self.#name.value()))
             });
 
             let names = fields.named.iter().map(|field| {
                 let name = &field.ident;
-                // quote!(#name: row.try_get(#i)?)
                 quote!(stringify!(#name))
             });
 
@@ -24,13 +22,7 @@ pub fn derive_from_row(input: TokenStream) -> TokenStream {
 
             return TokenStream::from(quote!(
             impl<'a> crate::query_builder::Row<'a> for #name {
-                // fn from_row(row: tokio_postgres::Row) -> Result<Self, anyhow::Error> {
-                //     Ok(Self {
-                //         #(#field_vals),*
-                //     })
-                // }
-
-                fn columns(&self) -> &'static [&'static str] {
+                fn columns() -> &'static [&'static str] {
                     &[
                         #(#names),*
                     ]

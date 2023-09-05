@@ -245,3 +245,12 @@ mod tests {
         println!("{}", s);
     }
 }
+
+// #[derive(unnamed_qb_macro::Row)]
+// struct TestRow {
+//     a: String,
+//     b: i32,
+//     c: i64,
+//     f: bool,
+//     d: Option<i32>,
+// }

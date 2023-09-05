@@ -25,9 +25,10 @@ pub trait BuildSql<'a> {
     fn dialect() -> Dialect;
     fn sql(self) -> Sql<'a>;
 
-    fn write_str(&mut self, sql: &str);
+    fn write_str<S: AsRef<str>>(&mut self, sql: S);
     fn write_char(&mut self, ch: char);
-    fn push_binding(&mut self, value: &'a Value<'a>) -> usize;
+    fn push_binding(&mut self, binding: &'a Value<'a>) -> usize;
+    fn extend_bindings(&mut self, bindings: impl IntoIterator<Item = &'a Value<'a>>);
 
     fn into_sqlx_qb(self) -> Self::SqlxQb;
 
@@ -158,10 +159,15 @@ pub trait BuildSql<'a> {
     fn build_update(&mut self, qb: &'a QueryBuilder<'a>) {
         if let Query::Update(UpdateQuery {
             columns,
+            values,
             table,
             where_clause,
         }) = &qb.query
         {
+            values.iter().for_each(|value| {
+                self.push_binding(value);
+            });
+
             self.write_str("update");
 
             if let Some(table) = table {
@@ -171,19 +177,16 @@ pub trait BuildSql<'a> {
 
             self.write_str(" set");
 
-            columns
-                .iter()
-                .enumerate()
-                .for_each(|(idx, (column, binding_idx))| {
-                    if idx > 0 {
-                        self.write_char(',');
-                    }
+            columns.iter().enumerate().for_each(|(idx, column)| {
+                if idx > 0 {
+                    self.write_char(',');
+                }
 
-                    self.write_char(' ');
-                    self.write_str(column);
-                    self.write_str(" = $");
-                    self.write_str(format!("{}", binding_idx).as_str());
-                });
+                self.write_char(' ');
+                self.write_relation(column);
+                self.write_str(" = $");
+                self.write_str((idx + 1).to_string().as_str());
+            });
 
             self.build_where(where_clause, 0);
         }
@@ -192,7 +195,7 @@ pub trait BuildSql<'a> {
     fn build_insert(&mut self, qb: &'a QueryBuilder<'a>) {
         if let Query::Insert(InsertQuery {
             ordered_columns,
-            rows,
+            values,
             table,
         }) = &qb.query
         {
@@ -222,26 +225,38 @@ pub trait BuildSql<'a> {
                 self.write_char(')');
             }
 
-            if !rows.is_empty() {
+            if !values.is_empty() {
                 self.write_str(" values ");
 
-                rows.iter().enumerate().for_each(|(row_idx, (start, end))| {
-                    if row_idx > 0 {
+                let mut binding_idx: usize = 1;
+
+                for (tuple_idx, values) in values
+                    .chunks(ordered_columns.map(|columns| columns.len()).unwrap_or(0))
+                    .enumerate()
+                {
+                    if tuple_idx > 0 {
                         self.write_char(',');
                         self.write_char(' ');
                     }
 
                     self.write_char('(');
-                    for (idx, bind_idx) in ((*start)..(*end)).enumerate() {
+
+                    for (idx, _) in values.iter().enumerate() {
                         if idx > 0 {
                             self.write_char(',');
                             self.write_char(' ');
                         }
-                        self.write_str(format!("${}", bind_idx).as_str());
+
+                        self.write_char('$');
+                        self.write_str(binding_idx.to_string());
+                        binding_idx += 1;
                     }
+
                     self.write_char(')');
-                });
+                }
             }
+
+            self.extend_bindings(values);
         }
     }
 
@@ -388,13 +403,17 @@ mod test {
             self.sql.push(ch);
         }
 
-        fn write_str(&mut self, sql: &str) {
-            self.sql.push_str(sql);
+        fn write_str<S: AsRef<str>>(&mut self, sql: S) {
+            self.sql.push_str(sql.as_ref());
         }
 
         fn push_binding(&mut self, value: &'a Value<'a>) -> usize {
             self.bindings.push(value);
             self.bindings.len()
+        }
+
+        fn extend_bindings(&mut self, bindings: impl IntoIterator<Item = &'a Value<'a>>) {
+            self.bindings.extend(bindings);
         }
     }
 
@@ -463,5 +482,93 @@ mod test {
 
         assert_eq!(sql.sql, r#"select "my_tbl".* from "my_tbl""#);
         assert!(sql.bindings.is_empty());
+    }
+
+    #[test]
+    fn update() {
+        #[derive(unnamed_qb_macro::Row)]
+        struct TestRow {
+            a: String,
+            b: i32,
+            c: i64,
+            f: bool,
+            d: Option<i32>,
+        }
+
+        let r = TestRow {
+            a: "a_val".to_owned(),
+            b: 10,
+            c: 20,
+            f: false,
+            d: None,
+        };
+
+        let mut qb = QueryBuilder::new();
+        let sql = qb.update(r).table("my_tbl").sql::<TestDialect>();
+
+        assert_eq!(
+            sql.sql,
+            r#"update "my_tbl" set "a" = $1, "b" = $2, "c" = $3, "f" = $4, "d" = $5"#
+        );
+        assert_eq!(sql.bindings.len(), 5);
+    }
+
+    #[test]
+    fn insert() {
+        #[derive(unnamed_qb_macro::Row)]
+        struct TestRow {
+            a: String,
+            b: i32,
+            c: i64,
+            f: bool,
+            d: Option<i32>,
+        }
+
+        let r = TestRow {
+            a: "a_val".to_owned(),
+            b: 10,
+            c: 20,
+            f: false,
+            d: None,
+        };
+
+        let rs = vec![
+            TestRow {
+                a: "a_val".to_owned(),
+                b: 10,
+                c: 20,
+                f: false,
+                d: None,
+            },
+            TestRow {
+                a: "a_val".to_owned(),
+                b: 10,
+                c: 20,
+                f: false,
+                d: None,
+            },
+            TestRow {
+                a: "a_val".to_owned(),
+                b: 10,
+                c: 20,
+                f: false,
+                d: None,
+            },
+        ];
+
+        let mut qb = QueryBuilder::new();
+        let insert_qb = qb.insert().into("my_tbl");
+
+        insert_qb.value(r);
+
+        insert_qb.values(rs);
+
+        let sql = insert_qb.sql::<TestDialect>();
+
+        assert_eq!(
+            sql.sql,
+            r#"insert into "my_tbl" ("a", "b", "c", "f", "d") values ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10), ($11, $12, $13, $14, $15), ($16, $17, $18, $19, $20)"#
+        );
+        assert_eq!(sql.bindings.len(), 20);
     }
 }
