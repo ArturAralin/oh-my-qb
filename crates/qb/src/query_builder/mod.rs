@@ -6,6 +6,7 @@ mod value;
 mod where_clause;
 
 pub use self::query::delete::*;
+pub use self::query::insert::*;
 pub use self::query::join::*;
 pub use self::query::select::*;
 use crate::sql_dialect::{Sql, SqlDialect};
@@ -32,8 +33,8 @@ impl<'a> QueryBuilder<'a> {
             Query::Delete(_) => {
                 // delete.table = Some(Rc::new(<T as TryIntoArg>::try_into_arg(table).unwrap()));
             }
-            Query::Insert(insert) => {
-                insert.table = Some(Rc::new(<T as TryIntoArg>::try_into_arg(table).unwrap()));
+            Query::Insert(_) => {
+                // insert.table = Some(Rc::new(<T as TryIntoArg>::try_into_arg(table).unwrap()));
             }
             Query::Select(select) => {
                 select.table = Some(Rc::new(<T as TryIntoArg>::try_into_arg(table).unwrap()));
@@ -45,12 +46,6 @@ impl<'a> QueryBuilder<'a> {
     }
 
     pub fn table(&mut self, table: &'a str) -> &mut Self {
-        self.table_internal(table);
-
-        self
-    }
-
-    pub fn into(&mut self, table: &'a str) -> &mut Self {
         self.table_internal(table);
 
         self
@@ -70,15 +65,8 @@ impl<'a> QueryBuilder<'a> {
         DeleteQuery::default()
     }
 
-    pub fn insert(&mut self) -> &mut Self {
-        self.query = Query::Insert(InsertQuery {
-            table: None,
-            // rows: Default::default(),
-            values: Default::default(),
-            ordered_columns: Default::default(),
-        });
-
-        self
+    pub fn insert<'b>() -> InsertQuery<'b> {
+        InsertQuery::default()
     }
 
     pub fn update<R: Row<'a>>(&mut self, row: R) -> &mut Self {
@@ -97,46 +85,6 @@ impl<'a> QueryBuilder<'a> {
             table: None,
             where_clause: Default::default(),
         });
-
-        self
-    }
-
-    pub fn value<R: Row<'a>>(&mut self, row: R) -> &mut Self {
-        let mut builder = RowBuilder::default();
-
-        row.into_row(&mut builder);
-
-        if let Query::Insert(InsertQuery {
-            values,
-            ordered_columns,
-            ..
-        }) = &mut self.query
-        {
-            *ordered_columns = Some(R::columns());
-            values.extend(builder.values);
-        }
-
-        self
-    }
-
-    pub fn values<R: Row<'a>>(&mut self, rows: impl IntoIterator<Item = R>) -> &mut Self {
-        if let Query::Insert(InsertQuery {
-            values,
-            ordered_columns,
-            ..
-        }) = &mut self.query
-        {
-            *ordered_columns = Some(R::columns());
-
-            for row in rows.into_iter() {
-                let mut builder = RowBuilder::default();
-                row.into_row(&mut builder);
-
-                values.extend(builder.values);
-            }
-        } else {
-            // return error
-        }
 
         self
     }
@@ -172,13 +120,6 @@ impl<'a> PushCondition<'a> for QueryBuilder<'a> {
             }
         }
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct InsertQuery<'a> {
-    pub table: Option<Rc<Arg<'a>>>,
-    pub ordered_columns: Option<&'static [&'static str]>,
-    pub values: Vec<Value<'a>>,
 }
 
 #[derive(Debug, Clone)]

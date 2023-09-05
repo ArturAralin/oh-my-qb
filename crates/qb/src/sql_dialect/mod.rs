@@ -40,7 +40,7 @@ pub trait SqlDialect<'a> {
             Query::Delete(qb) => {
                 self.build_delete(qb);
             }
-            Query::Insert(_) => {
+            Query::Insert(qb) => {
                 self.build_insert(qb);
             }
             Query::Update(_) => {
@@ -186,72 +186,66 @@ pub trait SqlDialect<'a> {
         }
     }
 
-    fn build_insert(&mut self, qb: &'a QueryBuilder<'a>) {
-        if let Query::Insert(InsertQuery {
-            ordered_columns,
-            values,
-            table,
-        }) = &qb.query
-        {
-            self.write_str("insert");
+    fn build_insert(&mut self, qb: &'a InsertQuery<'a>) {
+        self.write_str("insert");
 
-            if let Some(table) = table {
-                self.write_str(" into ");
-                self.write_arg(table.as_ref());
-            }
+        if let Some(table) = &qb.table {
+            self.write_str(" into ");
+            self.write_relation(table);
+        }
 
-            if let Some(ordered_columns) = ordered_columns {
-                self.write_char(' ');
-                self.write_char('(');
+        if let Some(ordered_columns) = &qb.ordered_columns {
+            self.write_char(' ');
+            self.write_char('(');
 
-                ordered_columns
-                    .iter()
-                    .enumerate()
-                    .for_each(|(idx, column)| {
-                        if idx > 0 {
-                            self.write_char(',');
-                            self.write_char(' ');
-                        }
-
-                        self.write_str(format!(r#""{}""#, column).as_str());
-                    });
-
-                self.write_char(')');
-            }
-
-            if !values.is_empty() {
-                self.write_str(" values ");
-
-                let mut binding_idx: usize = 1;
-
-                for (tuple_idx, values) in values
-                    .chunks(ordered_columns.map(|columns| columns.len()).unwrap_or(0))
-                    .enumerate()
-                {
-                    if tuple_idx > 0 {
+            ordered_columns
+                .iter()
+                .enumerate()
+                .for_each(|(idx, column)| {
+                    if idx > 0 {
                         self.write_char(',');
                         self.write_char(' ');
                     }
 
-                    self.write_char('(');
+                    self.write_str(format!(r#""{}""#, column).as_str());
+                });
 
-                    for (idx, _) in values.iter().enumerate() {
-                        if idx > 0 {
-                            self.write_char(',');
-                            self.write_char(' ');
-                        }
+            self.write_char(')');
+        }
 
-                        self.write_char('$');
-                        self.write_str(binding_idx.to_string());
-                        binding_idx += 1;
+        if !qb.bindings.is_empty() {
+            self.write_str(" values ");
+
+            let mut binding_idx: usize = 1;
+
+            for (tuple_idx, values) in qb
+                .bindings
+                .chunks(qb.ordered_columns.map(|columns| columns.len()).unwrap_or(0))
+                .enumerate()
+            {
+                if tuple_idx > 0 {
+                    self.write_char(',');
+                    self.write_char(' ');
+                }
+
+                self.write_char('(');
+
+                for (idx, _) in values.iter().enumerate() {
+                    if idx > 0 {
+                        self.write_char(',');
+                        self.write_char(' ');
                     }
 
-                    self.write_char(')');
+                    self.write_char('$');
+                    self.write_str(binding_idx.to_string());
+                    binding_idx += 1;
                 }
-            }
 
-            self.extend_bindings(values);
+                self.write_char(')');
+            }
         }
+
+        self.extend_bindings(&qb.bindings);
     }
 
     fn build_where(&mut self, where_conditions: &'a [WhereCondition<'a>], depth: usize) {
@@ -594,8 +588,8 @@ mod test {
             },
         ];
 
-        let mut qb = QueryBuilder::new();
-        let insert_qb = qb.insert().into("my_tbl");
+        let mut qb = QueryBuilder::insert();
+        let insert_qb = qb.into_("my_tbl");
 
         insert_qb.value(r);
 
