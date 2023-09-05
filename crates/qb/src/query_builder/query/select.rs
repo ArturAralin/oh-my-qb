@@ -19,14 +19,14 @@ pub struct SelectQuery<'a> {
 }
 
 impl<'a> SelectQuery<'a> {
-    pub fn columns(&mut self, columns: Option<&'a [&'a str]>) -> &mut Self {
-        self.columns = columns.map(|columns| {
+    pub fn columns(&mut self, columns: &'a [&'a str]) -> &mut Self {
+        self.columns = Some(
             columns
                 .as_ref()
                 .iter()
                 .map(|column| Cow::Borrowed(*column))
-                .collect::<Vec<_>>()
-        });
+                .collect::<Vec<_>>(),
+        );
 
         self
     }

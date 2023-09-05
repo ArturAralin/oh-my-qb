@@ -37,7 +37,7 @@ pub trait SqlDialect<'a> {
             Query::Select(select) => {
                 self.build_select(select);
             }
-            Query::Delete(_) => {
+            Query::Delete(qb) => {
                 self.build_delete(qb);
             }
             Query::Insert(_) => {
@@ -139,21 +139,15 @@ pub trait SqlDialect<'a> {
         }
     }
 
-    fn build_delete(&mut self, qb: &'a QueryBuilder<'a>) {
-        if let Query::Delete(DeleteQuery {
-            table,
-            where_clause,
-        }) = &qb.query
-        {
-            self.write_str("delete");
+    fn build_delete(&mut self, qb: &'a DeleteQuery<'a>) {
+        self.write_str("delete");
 
-            if let Some(table) = table {
-                self.write_str(" from ");
-                self.write_arg(table);
-            }
-
-            self.build_where(where_clause, 0);
+        if let Some(table) = &qb.table {
+            self.write_str(" from ");
+            self.write_relation(table);
         }
+
+        self.build_where(&qb.where_clause, 0);
     }
 
     fn build_update(&mut self, qb: &'a QueryBuilder<'a>) {
@@ -421,8 +415,8 @@ mod test {
 
     #[test]
     fn select_all() {
-        let mut select = QueryBuilder::select_();
-        let sql = select.columns(None).from("table").sql::<TestDialect>();
+        let mut select = QueryBuilder::select();
+        let sql = select.from("table").sql::<TestDialect>();
 
         assert_eq!(sql.sql, r#"select * from "table""#);
         assert!(sql.bindings.is_empty());
@@ -430,9 +424,8 @@ mod test {
 
     #[test]
     fn select_where() {
-        let mut select = QueryBuilder::select_();
+        let mut select = QueryBuilder::select();
         let sql = select
-            .columns(None)
             .from("table")
             .and_where("my_column", "=", 100.value())
             .sql::<TestDialect>();
@@ -443,9 +436,8 @@ mod test {
 
     #[test]
     fn select_groped_where() {
-        let mut select = QueryBuilder::select_();
+        let mut select = QueryBuilder::select();
         let sql = select
-            .columns(None)
             .from("table")
             .and_where_grouped(|where_qb| {
                 where_qb.and_where("a", "=", "b").and_where("b", "<>", "c");
@@ -461,9 +453,8 @@ mod test {
 
     #[test]
     fn select_groped_where_when_single_cond() {
-        let mut select = QueryBuilder::select_();
+        let mut select = QueryBuilder::select();
         let sql = select
-            .columns(None)
             .from("table")
             .and_where_grouped(|where_qb| {
                 where_qb.and_where("a", "=", "b");
@@ -476,9 +467,9 @@ mod test {
 
     #[test]
     fn select_columns() {
-        let mut qb = QueryBuilder::new();
+        let mut qb = QueryBuilder::select();
         let sql = qb
-            .select(Some(&["column1", "column2", "namespace.column"]))
+            .columns(&["column1", "column2", "namespace.column"])
             .from("table")
             .sql::<TestDialect>();
 
@@ -491,7 +482,7 @@ mod test {
 
     #[test]
     fn left_join() {
-        let mut qb = QueryBuilder::select_();
+        let mut qb = QueryBuilder::select();
         let sql = qb
             .from("table")
             .left_join("another_table", "table.id", "=", "another_table.t_id")
@@ -506,10 +497,10 @@ mod test {
 
     #[test]
     fn sub_query_alias() {
-        let mut sub_qb = QueryBuilder::select_();
+        let mut sub_qb = QueryBuilder::select();
         sub_qb.from("super_table").alias("my_alias");
 
-        let mut qb = QueryBuilder::select_();
+        let mut qb = QueryBuilder::select();
         let sql = qb.from(sub_qb).sql::<TestDialect>();
 
         assert_eq!(
@@ -521,9 +512,9 @@ mod test {
 
     #[test]
     fn select_column_asterisk() {
-        let mut qb = QueryBuilder::new();
+        let mut qb = QueryBuilder::select();
         let sql = qb
-            .select(Some(&["my_tbl.*"]))
+            .columns(&["my_tbl.*"])
             .from("my_tbl")
             .sql::<TestDialect>();
 
@@ -617,5 +608,14 @@ mod test {
             r#"insert into "my_tbl" ("a", "b", "c", "f", "d") values ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10), ($11, $12, $13, $14, $15), ($16, $17, $18, $19, $20)"#
         );
         assert_eq!(sql.bindings.len(), 20);
+    }
+
+    #[test]
+    fn delete() {
+        let mut qb = QueryBuilder::delete();
+        let sql = qb.from("my_table").sql::<TestDialect>();
+
+        assert_eq!(sql.sql, r#"delete from "my_table""#);
+        assert!(sql.bindings.is_empty());
     }
 }

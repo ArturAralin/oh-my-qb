@@ -5,6 +5,7 @@ mod row;
 mod value;
 mod where_clause;
 
+pub use self::query::delete::*;
 pub use self::query::join::*;
 pub use self::query::select::*;
 use crate::sql_dialect::{Sql, SqlDialect};
@@ -28,8 +29,8 @@ impl<'a> QueryBuilder<'a> {
 
     fn table_internal<T: TryIntoArg<'a>>(&mut self, table: T) {
         match &mut self.query {
-            Query::Delete(delete) => {
-                delete.table = Some(Rc::new(<T as TryIntoArg>::try_into_arg(table).unwrap()));
+            Query::Delete(_) => {
+                // delete.table = Some(Rc::new(<T as TryIntoArg>::try_into_arg(table).unwrap()));
             }
             Query::Insert(insert) => {
                 insert.table = Some(Rc::new(<T as TryIntoArg>::try_into_arg(table).unwrap()));
@@ -61,33 +62,12 @@ impl<'a> QueryBuilder<'a> {
         self
     }
 
-    pub fn select(&mut self, columns: Option<&'a [&'a str]>) -> &mut Self {
-        let columns = columns.map(|columns| {
-            columns
-                .as_ref()
-                .iter()
-                .map(|column| Cow::Borrowed(*column))
-                .collect::<Vec<_>>()
-        });
-        self.query = Query::Select(SelectQuery {
-            columns,
-            ..Default::default()
-        });
-
-        self
-    }
-
-    pub fn select_<'b>() -> SelectQuery<'b> {
+    pub fn select<'b>() -> SelectQuery<'b> {
         SelectQuery::default()
     }
 
-    pub fn delete(&mut self) -> &mut Self {
-        self.query = Query::Delete(DeleteQuery {
-            table: None,
-            where_clause: Default::default(),
-        });
-
-        self
+    pub fn delete<'b>() -> DeleteQuery<'b> {
+        DeleteQuery::default()
     }
 
     pub fn insert(&mut self) -> &mut Self {
@@ -206,12 +186,6 @@ pub struct UpdateQuery<'a> {
     pub table: Option<Rc<Arg<'a>>>,
     pub columns: Vec<Cow<'a, str>>,
     pub values: Vec<Value<'a>>,
-    pub where_clause: Vec<WhereCondition<'a>>,
-}
-
-#[derive(Debug, Clone)]
-pub struct DeleteQuery<'a> {
-    pub table: Option<Rc<Arg<'a>>>,
     pub where_clause: Vec<WhereCondition<'a>>,
 }
 
