@@ -46,6 +46,10 @@ impl<'a> SqlDialect<'a> for PostgresSqlDialect<'a> {
         self.bindings.extend(bindings);
     }
 
+    fn get_bindings_count(&self) -> usize {
+        self.bindings.len()
+    }
+
     fn into_sqlx_qb(self) -> Self::SqlxQb {
         let mut args = sqlx::postgres::PgArguments::default();
 

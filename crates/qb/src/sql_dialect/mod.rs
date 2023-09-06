@@ -29,6 +29,7 @@ pub trait SqlDialect<'a> {
     fn write_char(&mut self, ch: char);
     fn push_binding(&mut self, binding: &'a Value<'a>) -> usize;
     fn extend_bindings(&mut self, bindings: impl IntoIterator<Item = &'a Value<'a>>);
+    fn get_bindings_count(&self) -> usize;
 
     fn into_sqlx_qb(self) -> Self::SqlxQb;
 
@@ -298,17 +299,18 @@ pub trait SqlDialect<'a> {
                 });
                 self.write_char(')');
             }
-            Arg::Raw(Raw {
-                sql,
-                bindings_slice,
-                ..
-            }) => {
-                let mut idx = bindings_slice.map(|(start, _)| start).unwrap_or(0);
+            Arg::Raw(Raw { sql, bindings }) => {
+                let mut idx = self.get_bindings_count();
+
+                if let Some(bindings) = bindings {
+                    self.extend_bindings(bindings);
+                }
 
                 for ch in sql.chars() {
                     if ch == '?' {
                         idx += 1;
-                        self.write_str(format!("${}", idx).as_str());
+                        self.write_char('$');
+                        self.write_str(idx.to_string());
                     } else {
                         self.write_char(ch);
                     }
@@ -331,7 +333,7 @@ pub trait SqlDialect<'a> {
 #[cfg(test)]
 mod test {
     use super::SqlDialect;
-    use crate::{prelude::*, query_builder::Value};
+    use crate::{prelude::*, query_builder::Value, RawExt};
 
     #[derive(Debug, Default)]
     pub struct TestDialect<'a> {
@@ -377,6 +379,10 @@ mod test {
 
         fn extend_bindings(&mut self, bindings: impl IntoIterator<Item = &'a Value<'a>>) {
             self.bindings.extend(bindings);
+        }
+
+        fn get_bindings_count(&self) -> usize {
+            self.bindings.len()
         }
     }
 
@@ -584,5 +590,20 @@ mod test {
 
         assert_eq!(sql.sql, r#"delete from "my_table""#);
         assert!(sql.bindings.is_empty());
+    }
+
+    #[test]
+    fn raw() {
+        let mut qb = QueryBuilder::select();
+        let sql = qb
+            .from(
+                "unnest_array({?, ?, ?})"
+                    .raw()
+                    .bindings(vec![1.value(), 2.value(), 3.value()]),
+            )
+            .sql::<TestDialect>();
+
+        assert_eq!(sql.sql, r#"select * from unnest_array({$1, $2, $3})"#);
+        assert_eq!(sql.bindings.len(), 3);
     }
 }
