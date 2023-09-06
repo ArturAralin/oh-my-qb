@@ -26,6 +26,9 @@ pub enum ArgValue<'a> {
 pub enum SqlKeyword {
     Asc,
     Desc,
+    // only for PG
+    NullsFirst,
+    NullsLast,
 }
 
 impl<'a> TryIntoArg<'a> for SqlKeyword {

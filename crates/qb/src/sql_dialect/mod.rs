@@ -116,19 +116,24 @@ pub trait SqlDialect<'a> {
         if let Some(ordering) = ordering {
             self.write_str(" order by ");
 
-            ordering
-                .iter()
-                .enumerate()
-                .for_each(|(idx, (left, right))| {
-                    if idx > 0 {
-                        self.write_char(' ');
-                        self.write_char(',');
-                    }
-
-                    self.write_arg(left);
+            ordering.iter().enumerate().for_each(|(idx, ordering)| {
+                if idx > 0 {
                     self.write_char(' ');
-                    self.write_arg(right);
-                });
+                    self.write_char(',');
+                }
+
+                self.write_arg(&ordering.left);
+                self.write_char(' ');
+                self.write_arg(&ordering.right);
+
+                if let Some(null_first) = ordering.null_first {
+                    if null_first {
+                        self.write_str(" nulls first");
+                    } else {
+                        self.write_str(" nulls last");
+                    }
+                }
+            });
         }
 
         if let Some(limit) = limit {
@@ -348,6 +353,8 @@ pub trait SqlDialect<'a> {
             Arg::Keyword(keyword) => match keyword {
                 SqlKeyword::Asc => self.write_str("asc"),
                 SqlKeyword::Desc => self.write_str("desc"),
+                SqlKeyword::NullsFirst => self.write_str("nulls first"),
+                SqlKeyword::NullsLast => self.write_str("nulls first"),
             },
         }
     }
@@ -639,10 +646,23 @@ mod test {
         let mut qb = QueryBuilder::select();
         let sql = qb
             .from("table")
-            .order_by("column", SqlKeyword::Asc)
+            .order_by(("column", SqlKeyword::Asc))
             .sql::<TestDialect>();
 
-        println!("{}", sql.sql);
         assert_eq!(sql.sql, r#"select * from "table" order by "column" asc"#);
+    }
+
+    #[test]
+    fn order_by_nulls() {
+        let mut qb = QueryBuilder::select();
+        let sql = qb
+            .from("table")
+            .order_by(("column", SqlKeyword::Asc, SqlKeyword::NullsFirst))
+            .sql::<TestDialect>();
+
+        assert_eq!(
+            sql.sql,
+            r#"select * from "table" order by "column" asc nulls first"#
+        );
     }
 }

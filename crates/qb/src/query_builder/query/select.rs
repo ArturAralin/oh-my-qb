@@ -1,5 +1,5 @@
 use crate::{
-    query_builder::{Arg, PushCondition, TryIntoArg, WhereCondition},
+    query_builder::{Arg, PushCondition, SqlKeyword, TryIntoArg, WhereCondition},
     sql_dialect::{Sql, SqlDialect},
     Conditions,
 };
@@ -15,8 +15,39 @@ pub struct SelectQuery<'a> {
     pub where_: Vec<WhereCondition<'a>>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
-    pub ordering: Option<Vec<(Arg<'a>, Arg<'a>)>>,
+    pub ordering: Option<Vec<O<'a>>>,
     pub alias: Option<Cow<'a, str>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct O<'a> {
+    pub left: Arg<'a>,
+    pub right: Arg<'a>,
+    pub null_first: Option<bool>,
+}
+
+pub trait TryIntoOrdering<'a> {
+    fn try_into_ordering(self) -> Result<O<'a>, ()>;
+}
+
+impl<'a, T1: TryIntoArg<'a>, T2: TryIntoArg<'a>> TryIntoOrdering<'a> for (T1, T2) {
+    fn try_into_ordering(self) -> Result<O<'a>, ()> {
+        Ok(O {
+            left: self.0.try_into_arg().unwrap(),
+            right: self.1.try_into_arg().unwrap(),
+            null_first: None,
+        })
+    }
+}
+
+impl<'a, T1: TryIntoArg<'a>, T2: TryIntoArg<'a>> TryIntoOrdering<'a> for (T1, T2, SqlKeyword) {
+    fn try_into_ordering(self) -> Result<O<'a>, ()> {
+        Ok(O {
+            left: self.0.try_into_arg().unwrap(),
+            right: self.1.try_into_arg().unwrap(),
+            null_first: Some(matches!(self.2, SqlKeyword::NullsFirst)),
+        })
+    }
 }
 
 impl<'a> SelectQuery<'a> {
@@ -50,12 +81,8 @@ impl<'a> SelectQuery<'a> {
         self
     }
 
-    pub fn order_by<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
-        &mut self,
-        left: L,
-        right: R,
-    ) -> &mut Self {
-        let order = (left.try_into_arg().unwrap(), right.try_into_arg().unwrap());
+    pub fn order_by(&mut self, ordering: impl TryIntoOrdering<'a>) -> &mut Self {
+        let order = ordering.try_into_ordering().unwrap();
 
         if let Some(ordering) = &mut self.ordering {
             ordering.push(order);
