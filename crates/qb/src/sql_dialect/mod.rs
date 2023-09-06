@@ -1,7 +1,7 @@
 pub mod postgres;
 use crate::query_builder::{
     Arg, ArgValue, ConditionOp, DeleteQuery, GroupedWhereCondition, InsertQuery, Join, Raw,
-    SelectQuery, SingleWhereCondition, UpdateQuery, Value, WhereCondition,
+    SelectQuery, SingleWhereCondition, SqlKeyword, UpdateQuery, Value, WhereCondition,
 };
 
 #[derive(Debug)]
@@ -57,6 +57,7 @@ pub trait SqlDialect<'a> {
             where_: where_clause,
             limit,
             offset,
+            ordering,
             ..
         } = select;
 
@@ -111,6 +112,24 @@ pub trait SqlDialect<'a> {
         }
 
         self.build_where(where_clause, 0);
+
+        if let Some(ordering) = ordering {
+            self.write_str(" order by ");
+
+            ordering
+                .iter()
+                .enumerate()
+                .for_each(|(idx, (left, right))| {
+                    if idx > 0 {
+                        self.write_char(' ');
+                        self.write_char(',');
+                    }
+
+                    self.write_arg(left);
+                    self.write_char(' ');
+                    self.write_arg(right);
+                });
+        }
 
         if let Some(limit) = limit {
             self.write_str(" limit ");
@@ -326,6 +345,10 @@ pub trait SqlDialect<'a> {
                     self.write_relation(alias);
                 }
             }
+            Arg::Keyword(keyword) => match keyword {
+                SqlKeyword::Asc => self.write_str("asc"),
+                SqlKeyword::Desc => self.write_str("desc"),
+            },
         }
     }
 }
@@ -333,7 +356,11 @@ pub trait SqlDialect<'a> {
 #[cfg(test)]
 mod test {
     use super::SqlDialect;
-    use crate::{prelude::*, query_builder::Value, RawExt};
+    use crate::{
+        prelude::*,
+        query_builder::{SqlKeyword, Value},
+        RawExt,
+    };
 
     #[derive(Debug, Default)]
     pub struct TestDialect<'a> {
@@ -605,5 +632,17 @@ mod test {
 
         assert_eq!(sql.sql, r#"select * from unnest_array({$1, $2, $3})"#);
         assert_eq!(sql.bindings.len(), 3);
+    }
+
+    #[test]
+    fn order_by() {
+        let mut qb = QueryBuilder::select();
+        let sql = qb
+            .from("table")
+            .order_by("column", SqlKeyword::Asc)
+            .sql::<TestDialect>();
+
+        println!("{}", sql.sql);
+        assert_eq!(sql.sql, r#"select * from "table" order by "column" asc"#);
     }
 }

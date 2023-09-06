@@ -8,7 +8,7 @@ pub struct SubQuery<'a>(pub SelectQuery<'a>);
 impl<'a> TryIntoArg<'a> for SelectQuery<'a> {
     type E = crate::error::Error;
 
-    fn try_into_arg(value: Self) -> Result<Arg<'a>, Self::E> {
-        Ok(Arg::SubQuery(SubQuery(value)))
+    fn try_into_arg(self) -> Result<Arg<'a>, Self::E> {
+        Ok(Arg::SubQuery(SubQuery(self)))
     }
 }

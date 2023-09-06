@@ -15,6 +15,7 @@ pub struct SelectQuery<'a> {
     pub where_: Vec<WhereCondition<'a>>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
+    pub ordering: Option<Vec<(Arg<'a>, Arg<'a>)>>,
     pub alias: Option<Cow<'a, str>>,
 }
 
@@ -49,6 +50,22 @@ impl<'a> SelectQuery<'a> {
         self
     }
 
+    pub fn order_by<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
+        &mut self,
+        left: L,
+        right: R,
+    ) -> &mut Self {
+        let order = (left.try_into_arg().unwrap(), right.try_into_arg().unwrap());
+
+        if let Some(ordering) = &mut self.ordering {
+            ordering.push(order);
+        } else {
+            self.ordering = Some(vec![order])
+        }
+
+        self
+    }
+
     fn join_internal<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
         &mut self,
         join_type: Option<&'static str>,
@@ -60,9 +77,9 @@ impl<'a> SelectQuery<'a> {
         let join = Join::Regular(RegularJoin {
             join_type,
             table: Cow::Borrowed(table),
-            left: <L as TryIntoArg>::try_into_arg(left).unwrap(),
+            left: left.try_into_arg().unwrap(),
             op: Cow::Borrowed(op),
-            right: <R as TryIntoArg>::try_into_arg(right).unwrap(),
+            right: right.try_into_arg().unwrap(),
         });
 
         if let Some(joins) = &mut self.joins {

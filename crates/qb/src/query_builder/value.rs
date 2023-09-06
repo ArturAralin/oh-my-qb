@@ -90,7 +90,7 @@ impl<'a, T: Into<Value<'a>>> From<Option<T>> for Value<'a> {
 impl<'a> TryIntoArg<'a> for Value<'a> {
     type E = crate::error::Error;
 
-    fn try_into_arg(value: Self) -> Result<Arg<'a>, Self::E> {
-        Ok(Arg::Value(ArgValue::Value(value)))
+    fn try_into_arg(self) -> Result<Arg<'a>, Self::E> {
+        Ok(Arg::Value(ArgValue::Value(self)))
     }
 }

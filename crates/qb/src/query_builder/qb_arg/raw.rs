@@ -46,7 +46,7 @@ impl<'a> Raw<'a> {
 impl<'a> TryIntoArg<'a> for Raw<'a> {
     type E = crate::error::Error;
 
-    fn try_into_arg(value: Self) -> Result<super::Arg<'a>, Self::E> {
-        Ok(super::Arg::Raw(value))
+    fn try_into_arg(self) -> Result<super::Arg<'a>, Self::E> {
+        Ok(super::Arg::Raw(self))
     }
 }
