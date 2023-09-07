@@ -3,7 +3,7 @@ use super::{
     qb_arg::Arg,
     where_clause::{SingleWhereCondition, WhereCondition},
 };
-use super::{GroupedWhereCondition, TryIntoArg};
+use super::{GroupedWhereCondition, TryIntoArg, TryIntoCondition};
 
 #[derive(Debug, Clone)]
 pub enum ConditionOp {
@@ -12,7 +12,6 @@ pub enum ConditionOp {
 }
 
 pub struct GroupBuilder<'a> {
-    // bindings: Rc<RefCell<Vec<Value<'a>>>>,
     group: GroupedWhereCondition<'a>,
 }
 
@@ -21,38 +20,19 @@ pub trait PushCondition<'a> {
 }
 
 pub trait Conditions<'a>: PushCondition<'a> {
-    // todo: move to another trait ConditionsInternal
-
-    // fn get_bindings(&self) -> Rc<RefCell<Vec<Value<'a>>>>;
-
-    fn and_where<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
-        &mut self,
-        left: L,
-        op: &str,
-        right: R,
-    ) -> &mut Self {
-        self.push_cond(WhereCondition::Single(SingleWhereCondition {
-            op: ConditionOp::And,
-            left: <L as TryIntoArg>::try_into_arg(left).unwrap(),
-            middle: op.to_owned(),
-            right: <R as TryIntoArg>::try_into_arg(right).unwrap(),
-        }));
+    fn and_where(&mut self, condition: impl TryIntoCondition<'a>) -> &mut Self {
+        let condition = condition.try_into_condition().unwrap();
+        self.push_cond(condition);
 
         self
     }
 
-    fn or_where<L: TryIntoArg<'a>, R: TryIntoArg<'a>>(
-        &mut self,
-        left: L,
-        op: &str,
-        right: R,
-    ) -> &mut Self {
-        self.push_cond(WhereCondition::Single(SingleWhereCondition {
-            op: ConditionOp::Or,
-            left: <L as TryIntoArg>::try_into_arg(left).unwrap(),
-            middle: op.to_owned(),
-            right: <R as TryIntoArg>::try_into_arg(right).unwrap(),
-        }));
+    fn or_where(&mut self, condition: impl TryIntoCondition<'a>) -> &mut Self {
+        let mut condition = condition.try_into_condition().unwrap();
+
+        condition.set_op(ConditionOp::Or);
+
+        self.push_cond(condition);
 
         self
     }
@@ -75,19 +55,16 @@ pub trait Conditions<'a>: PushCondition<'a> {
 
     fn or_where_grouped<F>(&mut self, f: F) -> &mut Self
     where
-        F: FnOnce(&mut GroupBuilder<'a>),
+        F: FnOnce(&mut GroupedWhereCondition<'a>),
     {
-        let mut group_builder = GroupBuilder {
-            group: GroupedWhereCondition {
-                op: ConditionOp::Or,
-                conditions: vec![],
-            },
-            // bindings: self.get_bindings(),
+        let mut condition = GroupedWhereCondition {
+            op: ConditionOp::Or,
+            conditions: vec![],
         };
 
-        f(&mut group_builder);
+        f(&mut condition);
 
-        self.push_cond(WhereCondition::Group(group_builder.group));
+        self.push_cond(WhereCondition::Group(condition));
 
         self
     }
@@ -95,7 +72,7 @@ pub trait Conditions<'a>: PushCondition<'a> {
     fn and_where_null<L: TryIntoArg<'a>>(&mut self, left: L) -> &mut Self {
         self.push_cond(WhereCondition::Single(SingleWhereCondition {
             op: ConditionOp::And,
-            left: <L as TryIntoArg>::try_into_arg(left).unwrap(),
+            left: left.try_into_arg().unwrap(),
             middle: "is".to_owned(),
             right: Arg::Value(super::ArgValue::Value(Value::Null)),
         }));
@@ -138,10 +115,6 @@ pub trait Conditions<'a>: PushCondition<'a> {
 }
 
 impl<'a> PushCondition<'a> for GroupBuilder<'a> {
-    // fn get_bindings(&self) -> Rc<RefCell<Vec<Value<'a>>>> {
-    //     Rc::clone(&self.bindings)
-    // }
-
     fn push_cond(&mut self, cond: WhereCondition<'a>) {
         self.group.conditions.push(cond);
     }

@@ -1,7 +1,7 @@
 // todo: move to condition
 use crate::Conditions;
 
-use super::{conditions::ConditionOp, qb_arg::Arg, PushCondition};
+use super::{conditions::ConditionOp, qb_arg::Arg, PushCondition, TryIntoArg};
 
 #[derive(Debug, Clone)]
 pub struct SingleWhereCondition<'a> {
@@ -23,6 +23,15 @@ pub enum WhereCondition<'a> {
     Single(SingleWhereCondition<'a>),
 }
 
+impl<'a> WhereCondition<'a> {
+    pub fn set_op(&mut self, op: ConditionOp) {
+        match self {
+            Self::Group(cond) => cond.op = op,
+            Self::Single(cond) => cond.op = op,
+        };
+    }
+}
+
 impl<'a> GroupedWhereCondition<'a> {
     pub fn new(op: ConditionOp) -> Self {
         Self {
@@ -39,3 +48,29 @@ impl<'a> PushCondition<'a> for GroupedWhereCondition<'a> {
 }
 
 impl<'a> Conditions<'a> for GroupedWhereCondition<'a> {}
+
+pub trait TryIntoCondition<'a> {
+    fn try_into_condition(self) -> Result<WhereCondition<'a>, ()>;
+}
+
+impl<'a, T1: TryIntoArg<'a>, T2: TryIntoArg<'a>> TryIntoCondition<'a> for (T1, T2) {
+    fn try_into_condition(self) -> Result<WhereCondition<'a>, ()> {
+        Ok(WhereCondition::Single(SingleWhereCondition {
+            op: ConditionOp::And,
+            left: self.0.try_into_arg().unwrap(),
+            middle: "=".to_owned(),
+            right: self.1.try_into_arg().unwrap(),
+        }))
+    }
+}
+
+impl<'a, T1: TryIntoArg<'a>, T2: TryIntoArg<'a>> TryIntoCondition<'a> for (T1, &'a str, T2) {
+    fn try_into_condition(self) -> Result<WhereCondition<'a>, ()> {
+        Ok(WhereCondition::Single(SingleWhereCondition {
+            op: ConditionOp::And,
+            left: self.0.try_into_arg().unwrap(),
+            middle: self.1.to_owned(),
+            right: self.2.try_into_arg().unwrap(),
+        }))
+    }
+}

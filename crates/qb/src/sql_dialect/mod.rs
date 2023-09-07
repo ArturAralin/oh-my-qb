@@ -434,7 +434,19 @@ mod test {
         let mut select = QueryBuilder::select();
         let sql = select
             .from("table")
-            .and_where("my_column", "=", 100.value())
+            .and_where(("my_column", "=", 100.value()))
+            .sql::<TestDialect>();
+
+        assert_eq!(sql.sql, r#"select * from "table" where "my_column" = $1"#);
+        assert_eq!(sql.bindings.len(), 1);
+    }
+
+    #[test]
+    fn select_where_short_cond() {
+        let mut select = QueryBuilder::select();
+        let sql = select
+            .from("table")
+            .and_where(("my_column", 100.value()))
             .sql::<TestDialect>();
 
         assert_eq!(sql.sql, r#"select * from "table" where "my_column" = $1"#);
@@ -447,7 +459,9 @@ mod test {
         let sql = select
             .from("table")
             .and_where_grouped(|where_qb| {
-                where_qb.and_where("a", "=", "b").and_where("b", "<>", "c");
+                where_qb
+                    .and_where(("a", "=", "b"))
+                    .and_where(("b", "<>", "c"));
             })
             .sql::<TestDialect>();
 
@@ -464,7 +478,7 @@ mod test {
         let sql = select
             .from("table")
             .and_where_grouped(|where_qb| {
-                where_qb.and_where("a", "=", "b");
+                where_qb.and_where(("a", "=", "b"));
             })
             .sql::<TestDialect>();
 

@@ -31,14 +31,6 @@ pub enum SqlKeyword {
     NullsLast,
 }
 
-impl<'a> TryIntoArg<'a> for SqlKeyword {
-    type E = crate::error::Error;
-
-    fn try_into_arg(self) -> Result<Arg<'a>, Self::E> {
-        Ok(Arg::Keyword(self))
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum Arg<'a> {
     Relation(Relation<'a>),
@@ -67,5 +59,13 @@ impl<'a> TryIntoArg<'a> for Vec<Value<'a>> {
 
     fn try_into_arg(self) -> Result<Arg<'a>, Self::E> {
         Ok(Arg::Value(ArgValue::Values(self)))
+    }
+}
+
+impl<'a> TryIntoArg<'a> for SqlKeyword {
+    type E = crate::error::Error;
+
+    fn try_into_arg(self) -> Result<Arg<'a>, Self::E> {
+        Ok(Arg::Keyword(self))
     }
 }
