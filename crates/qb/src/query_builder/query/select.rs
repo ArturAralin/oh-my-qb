@@ -1,5 +1,5 @@
 use crate::{
-    query_builder::{Arg, PushCondition, SqlKeyword, TryIntoArg, WhereCondition},
+    query_builder::{Arg, PushCondition, Relation, SqlKeyword, TryIntoArg, WhereCondition},
     sql_dialect::{Sql, SqlDialect},
     Conditions,
 };
@@ -9,30 +9,37 @@ use super::join::{Join, RegularJoin};
 
 #[derive(Debug, Default, Clone)]
 pub struct SelectQuery<'a> {
-    pub columns: Option<Vec<Cow<'a, str>>>,
+    pub columns: Option<Vec<Column<'a>>>,
     pub table: Option<Rc<Arg<'a>>>,
     pub joins: Option<Vec<Join<'a>>>,
     pub where_: Vec<WhereCondition<'a>>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
-    pub ordering: Option<Vec<O<'a>>>,
+    pub ordering: Option<Vec<Ordering<'a>>>,
     pub alias: Option<Cow<'a, str>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct O<'a> {
+pub struct Ordering<'a> {
     pub left: Arg<'a>,
     pub right: Arg<'a>,
+    // only for PG
     pub null_first: Option<bool>,
 }
 
+#[derive(Debug, Clone)]
+pub struct Column<'a> {
+    pub arg: Arg<'a>,
+    pub alias: Option<Cow<'a, str>>,
+}
+
 pub trait TryIntoOrdering<'a> {
-    fn try_into_ordering(self) -> Result<O<'a>, ()>;
+    fn try_into_ordering(self) -> Result<Ordering<'a>, ()>;
 }
 
 impl<'a, T1: TryIntoArg<'a>, T2: TryIntoArg<'a>> TryIntoOrdering<'a> for (T1, T2) {
-    fn try_into_ordering(self) -> Result<O<'a>, ()> {
-        Ok(O {
+    fn try_into_ordering(self) -> Result<Ordering<'a>, ()> {
+        Ok(Ordering {
             left: self.0.try_into_arg().unwrap(),
             right: self.1.try_into_arg().unwrap(),
             null_first: None,
@@ -41,8 +48,8 @@ impl<'a, T1: TryIntoArg<'a>, T2: TryIntoArg<'a>> TryIntoOrdering<'a> for (T1, T2
 }
 
 impl<'a, T1: TryIntoArg<'a>, T2: TryIntoArg<'a>> TryIntoOrdering<'a> for (T1, T2, SqlKeyword) {
-    fn try_into_ordering(self) -> Result<O<'a>, ()> {
-        Ok(O {
+    fn try_into_ordering(self) -> Result<Ordering<'a>, ()> {
+        Ok(Ordering {
             left: self.0.try_into_arg().unwrap(),
             right: self.1.try_into_arg().unwrap(),
             null_first: Some(matches!(self.2, SqlKeyword::NullsFirst)),
@@ -50,15 +57,66 @@ impl<'a, T1: TryIntoArg<'a>, T2: TryIntoArg<'a>> TryIntoOrdering<'a> for (T1, T2
     }
 }
 
+pub trait ColumnExt<'a> {
+    fn alias(self, alias: &'a str) -> Column<'a>;
+}
+
+impl<'a> ColumnExt<'a> for &'a str {
+    fn alias(self, alias: &'a str) -> Column<'a> {
+        Column {
+            arg: Arg::Relation(Relation(Cow::Borrowed(self))),
+            alias: Some(Cow::Borrowed(alias)),
+        }
+    }
+}
+
+pub trait TryIntoColumn<'a> {
+    fn try_into_column(self) -> Result<Column<'a>, ()>;
+}
+
+impl<'a> TryIntoColumn<'a> for &'a str {
+    fn try_into_column(self) -> Result<Column<'a>, ()> {
+        Ok(Column {
+            arg: self.try_into_arg().unwrap(),
+            alias: None,
+        })
+    }
+}
+
+impl<'a> TryIntoColumn<'a> for SelectQuery<'a> {
+    fn try_into_column(self) -> Result<Column<'a>, ()> {
+        Ok(Column {
+            arg: self.try_into_arg().unwrap(),
+            alias: None,
+        })
+    }
+}
+
+impl<'a> TryIntoColumn<'a> for Column<'a> {
+    fn try_into_column(self) -> Result<Column<'a>, ()> {
+        Ok(self)
+    }
+}
+
 impl<'a> SelectQuery<'a> {
-    pub fn columns(&mut self, columns: &'a [&'a str]) -> &mut Self {
+    pub fn columns(&mut self, columns: Vec<impl TryIntoColumn<'a>>) -> &mut Self {
+        // todo: rework to extend?
         self.columns = Some(
             columns
-                .as_ref()
-                .iter()
-                .map(|column| Cow::Borrowed(*column))
-                .collect::<Vec<_>>(),
+                .into_iter()
+                .map(|a| a.try_into_column().unwrap())
+                .collect(),
         );
+
+        self
+    }
+
+    pub fn push_column(&mut self, column: impl TryIntoColumn<'a>) -> &mut Self {
+        if let Some(columns) = &mut self.columns {
+            columns.push(column.try_into_column().unwrap());
+        } else {
+            self.columns = Some(vec![column.try_into_column().unwrap()]);
+        }
 
         self
     }

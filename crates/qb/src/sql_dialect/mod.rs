@@ -76,7 +76,12 @@ pub trait SqlDialect<'a> {
                             self.write_char(' ');
                         }
 
-                        self.write_relation(column);
+                        self.write_arg(&column.arg);
+
+                        if let Some(alias) = &column.alias {
+                            self.write_str(" as ");
+                            self.write_relation(alias);
+                        }
                     });
                 }
             }
@@ -365,7 +370,7 @@ mod test {
     use super::SqlDialect;
     use crate::{
         prelude::*,
-        query_builder::{SqlKeyword, Value},
+        query_builder::{ColumnExt, SqlKeyword, Value},
         RawExt,
     };
 
@@ -430,6 +435,22 @@ mod test {
     }
 
     #[test]
+    fn select_columns_aliasing() {
+        let mut select = QueryBuilder::select();
+        let sql = select
+            .push_column("column1")
+            .push_column("column2".alias("another_name"))
+            .from("table")
+            .sql::<TestDialect>();
+
+        assert_eq!(
+            sql.sql,
+            r#"select "column1", "column2" as "another_name" from "table""#
+        );
+        assert!(sql.bindings.is_empty());
+    }
+
+    #[test]
     fn select_where() {
         let mut select = QueryBuilder::select();
         let sql = select
@@ -490,7 +511,7 @@ mod test {
     fn select_columns() {
         let mut qb = QueryBuilder::select();
         let sql = qb
-            .columns(&["column1", "column2", "namespace.column"])
+            .columns(vec!["column1", "column2", "namespace.column"])
             .from("table")
             .sql::<TestDialect>();
 
@@ -535,11 +556,30 @@ mod test {
     fn select_column_asterisk() {
         let mut qb = QueryBuilder::select();
         let sql = qb
-            .columns(&["my_tbl.*"])
+            .columns(vec!["my_tbl.*"])
             .from("my_tbl")
             .sql::<TestDialect>();
 
         assert_eq!(sql.sql, r#"select "my_tbl".* from "my_tbl""#);
+        assert!(sql.bindings.is_empty());
+    }
+
+    #[test]
+    fn select_column_sub_query() {
+        let mut sub_query = QueryBuilder::select();
+        sub_query.columns(vec!["column"]).from("tbl").alias("alias");
+
+        let mut qb = QueryBuilder::select();
+        let sql = qb
+            .columns(vec!["column"])
+            .push_column(sub_query)
+            .from("my_tbl")
+            .sql::<TestDialect>();
+
+        assert_eq!(
+            sql.sql,
+            r#"select "column", (select "column" from "tbl") as "alias" from "my_tbl""#
+        );
         assert!(sql.bindings.is_empty());
     }
 
