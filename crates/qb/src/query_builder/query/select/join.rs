@@ -1,5 +1,3 @@
-// todo: union in one mode with select
-
 use crate::query_builder::Arg;
 use std::borrow::Cow;
 

@@ -1,7 +1,8 @@
 pub mod postgres;
 use crate::query_builder::{
-    Arg, ArgValue, ConditionOp, DeleteQuery, GroupedWhereCondition, InsertQuery, Join, Raw,
-    SelectQuery, SingleWhereCondition, SqlKeyword, UpdateQuery, Value, WhereCondition,
+    select::join::Join, Arg, ArgValue, ConditionOp, DeleteQuery, GroupedWhereCondition,
+    InsertQuery, Raw, SelectQuery, SingleWhereCondition, SqlKeyword, UpdateQuery, Value,
+    WhereCondition,
 };
 
 #[derive(Debug)]
@@ -370,8 +371,8 @@ mod test {
     use super::SqlDialect;
     use crate::{
         prelude::*,
-        query_builder::{ColumnExt, SqlKeyword, Value},
-        RawExt,
+        query_builder::{SqlKeyword, Value},
+        ColumnExt, RawExt,
     };
 
     #[derive(Debug, Default)]

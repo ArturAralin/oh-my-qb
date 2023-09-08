@@ -1,105 +1,29 @@
+pub mod column;
+pub mod join;
+pub mod ordering;
+
+use crate::query_builder::conditions;
 use crate::{
-    query_builder::{Arg, PushCondition, Relation, SqlKeyword, TryIntoArg, WhereCondition},
+    query_builder::{Arg, PushCondition, TryIntoArg},
     sql_dialect::{Sql, SqlDialect},
     Conditions,
 };
 use std::{borrow::Cow, rc::Rc};
 
-use super::join::{Join, RegularJoin};
-
 #[derive(Debug, Default, Clone)]
 pub struct SelectQuery<'a> {
-    pub columns: Option<Vec<Column<'a>>>,
+    pub columns: Option<Vec<column::Column<'a>>>,
     pub table: Option<Rc<Arg<'a>>>,
-    pub joins: Option<Vec<Join<'a>>>,
-    pub where_: Vec<WhereCondition<'a>>,
+    pub joins: Option<Vec<join::Join<'a>>>,
+    pub where_: Vec<conditions::WhereCondition<'a>>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
-    pub ordering: Option<Vec<Ordering<'a>>>,
+    pub ordering: Option<Vec<ordering::Ordering<'a>>>,
     pub alias: Option<Cow<'a, str>>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Ordering<'a> {
-    pub left: Arg<'a>,
-    pub right: Arg<'a>,
-    // only for PG
-    pub null_first: Option<bool>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Column<'a> {
-    pub arg: Arg<'a>,
-    pub alias: Option<Cow<'a, str>>,
-}
-
-pub trait TryIntoOrdering<'a> {
-    fn try_into_ordering(self) -> Result<Ordering<'a>, ()>;
-}
-
-impl<'a, T1: TryIntoArg<'a>, T2: TryIntoArg<'a>> TryIntoOrdering<'a> for (T1, T2) {
-    fn try_into_ordering(self) -> Result<Ordering<'a>, ()> {
-        Ok(Ordering {
-            left: self.0.try_into_arg().unwrap(),
-            right: self.1.try_into_arg().unwrap(),
-            null_first: None,
-        })
-    }
-}
-
-impl<'a, T1: TryIntoArg<'a>, T2: TryIntoArg<'a>> TryIntoOrdering<'a> for (T1, T2, SqlKeyword) {
-    fn try_into_ordering(self) -> Result<Ordering<'a>, ()> {
-        Ok(Ordering {
-            left: self.0.try_into_arg().unwrap(),
-            right: self.1.try_into_arg().unwrap(),
-            null_first: Some(matches!(self.2, SqlKeyword::NullsFirst)),
-        })
-    }
-}
-
-pub trait ColumnExt<'a> {
-    fn alias(self, alias: &'a str) -> Column<'a>;
-}
-
-impl<'a> ColumnExt<'a> for &'a str {
-    fn alias(self, alias: &'a str) -> Column<'a> {
-        Column {
-            arg: Arg::Relation(Relation(Cow::Borrowed(self))),
-            alias: Some(Cow::Borrowed(alias)),
-        }
-    }
-}
-
-pub trait TryIntoColumn<'a> {
-    fn try_into_column(self) -> Result<Column<'a>, ()>;
-}
-
-impl<'a> TryIntoColumn<'a> for &'a str {
-    fn try_into_column(self) -> Result<Column<'a>, ()> {
-        Ok(Column {
-            arg: self.try_into_arg().unwrap(),
-            alias: None,
-        })
-    }
-}
-
-impl<'a> TryIntoColumn<'a> for SelectQuery<'a> {
-    fn try_into_column(self) -> Result<Column<'a>, ()> {
-        Ok(Column {
-            arg: self.try_into_arg().unwrap(),
-            alias: None,
-        })
-    }
-}
-
-impl<'a> TryIntoColumn<'a> for Column<'a> {
-    fn try_into_column(self) -> Result<Column<'a>, ()> {
-        Ok(self)
-    }
 }
 
 impl<'a> SelectQuery<'a> {
-    pub fn columns(&mut self, columns: Vec<impl TryIntoColumn<'a>>) -> &mut Self {
+    pub fn columns(&mut self, columns: Vec<impl column::TryIntoColumn<'a>>) -> &mut Self {
         // todo: rework to extend?
         self.columns = Some(
             columns
@@ -111,7 +35,7 @@ impl<'a> SelectQuery<'a> {
         self
     }
 
-    pub fn push_column(&mut self, column: impl TryIntoColumn<'a>) -> &mut Self {
+    pub fn push_column(&mut self, column: impl column::TryIntoColumn<'a>) -> &mut Self {
         if let Some(columns) = &mut self.columns {
             columns.push(column.try_into_column().unwrap());
         } else {
@@ -139,7 +63,7 @@ impl<'a> SelectQuery<'a> {
         self
     }
 
-    pub fn order_by(&mut self, ordering: impl TryIntoOrdering<'a>) -> &mut Self {
+    pub fn order_by(&mut self, ordering: impl ordering::TryIntoOrdering<'a>) -> &mut Self {
         let order = ordering.try_into_ordering().unwrap();
 
         if let Some(ordering) = &mut self.ordering {
@@ -159,7 +83,7 @@ impl<'a> SelectQuery<'a> {
         op: &'a str,
         right: R,
     ) {
-        let join = Join::Regular(RegularJoin {
+        let join = join::Join::Regular(join::RegularJoin {
             join_type,
             table: Cow::Borrowed(table),
             left: left.try_into_arg().unwrap(),
@@ -251,7 +175,7 @@ impl<'a> SelectQuery<'a> {
 }
 
 impl<'a> PushCondition<'a> for SelectQuery<'a> {
-    fn push_cond(&mut self, cond: WhereCondition<'a>) {
+    fn push_cond(&mut self, cond: conditions::WhereCondition<'a>) {
         self.where_.push(cond);
     }
 }
