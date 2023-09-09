@@ -8,3 +8,12 @@ pub use query_builder::Conditions;
 pub use query_builder::QueryBuilder;
 pub use query_builder::RawExt;
 pub use query_builder::ValueExt;
+
+// fn test() {
+//     // scope(QueryBuilder::select, |select| {
+//     //   select.columns(columns)
+//     // })
+
+//     // select!().columns();
+//     // update!(row)
+// }

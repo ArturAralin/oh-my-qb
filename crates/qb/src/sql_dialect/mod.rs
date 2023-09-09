@@ -59,6 +59,7 @@ pub trait SqlDialect<'a> {
             limit,
             offset,
             ordering,
+            group_by,
             ..
         } = select;
 
@@ -139,6 +140,19 @@ pub trait SqlDialect<'a> {
                         self.write_str(" nulls last");
                     }
                 }
+            });
+        }
+
+        if let Some(group_by) = group_by {
+            self.write_str(" group by ");
+
+            group_by.iter().enumerate().for_each(|(idx, group)| {
+                if idx > 0 {
+                    self.write_char(' ');
+                    self.write_char(',');
+                }
+
+                self.write_arg(group);
             });
         }
 
@@ -719,5 +733,13 @@ mod test {
             sql.sql,
             r#"select * from "table" order by "column" asc nulls first"#
         );
+    }
+
+    #[test]
+    fn group_by() {
+        let mut qb = QueryBuilder::select();
+        let sql = qb.from("table").group_by("column").sql::<TestDialect>();
+
+        assert_eq!(sql.sql, r#"select * from "table" group by "column""#);
     }
 }

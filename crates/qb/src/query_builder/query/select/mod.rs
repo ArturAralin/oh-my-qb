@@ -19,6 +19,7 @@ pub struct SelectQuery<'a> {
     pub limit: Option<usize>,
     pub offset: Option<usize>,
     pub ordering: Option<Vec<ordering::Ordering<'a>>>,
+    pub group_by: Option<Vec<Arg<'a>>>,
     pub alias: Option<Cow<'a, str>>,
 }
 
@@ -148,6 +149,18 @@ impl<'a> SelectQuery<'a> {
 
     pub fn alias(&mut self, alias: &'a str) -> &mut Self {
         self.alias = Some(Cow::Borrowed(alias));
+
+        self
+    }
+
+    pub fn group_by(&mut self, group: impl TryIntoArg<'a>) -> &mut Self {
+        let arg = group.try_into_arg().unwrap();
+
+        if let Some(group_by) = &mut self.group_by {
+            group_by.push(arg);
+        } else {
+            self.group_by = Some(vec![arg]);
+        }
 
         self
     }

@@ -73,7 +73,7 @@ let sql = qb
   ])
   .from("table")
   .and_where("table.id", "=", 10.value())
-  .sqlx_qb::<PostgresSqlDialect>() // here sqlx::QueryBuilder<'_, Postgres>
+  .sqlx_qb::<PostgresSqlDialect>() // here is sqlx::QueryBuilder<'_, Postgres>
   .into_sql();
 
 sql // select "table"."column1", "table"."column2" from "table" where "table"."id" = $1
