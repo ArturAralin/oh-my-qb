@@ -1,11 +1,8 @@
-mod raw;
-mod subquery;
+pub mod raw;
+pub mod subquery;
 
-use self::subquery::SubQuery;
 use super::value::Value;
-pub use raw::*;
 use std::borrow::Cow;
-pub use subquery::*;
 
 #[derive(Debug, Clone)]
 pub struct Relation<'a>(pub Cow<'a, str>);
@@ -35,8 +32,8 @@ pub enum SqlKeyword {
 pub enum Arg<'a> {
     Relation(Relation<'a>),
     Value(ArgValue<'a>),
-    Raw(Raw<'a>),
-    SubQuery(SubQuery<'a>),
+    Raw(raw::Raw<'a>),
+    SubQuery(subquery::SubQuery<'a>),
     Keyword(SqlKeyword),
 }
 

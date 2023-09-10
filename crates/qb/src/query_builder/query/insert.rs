@@ -1,12 +1,23 @@
 use std::borrow::Cow;
 
+use crate::query_builder::subquery::SubQuery;
 use crate::{
-    query_builder::{Row, RowBuilder, Value},
+    query_builder::{Arg, Row, RowBuilder, Value},
     sql_dialect::{Sql, SqlDialect},
 };
 
+#[derive(Debug, Clone)]
+pub struct InsertWithValues {}
+
+#[derive(Debug, Clone)]
+pub enum InsertType<'a> {
+    WithValues(InsertWithValues),
+    FromSubQuery(SubQuery<'a>),
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct InsertQuery<'a> {
+    pub inner: InsertType<'a>,
     pub table: Option<Cow<'a, str>>,
     pub ordered_columns: Option<&'static [&'static str]>,
     pub bindings: Vec<Value<'a>>,
