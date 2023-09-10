@@ -12,3 +12,9 @@ impl<'a> TryIntoArg<'a> for SelectQuery<'a> {
         Ok(Arg::SubQuery(SubQuery(self)))
     }
 }
+
+impl<'a> From<SelectQuery<'a>> for SubQuery<'a>  {
+    fn from(value: SelectQuery<'a>) -> Self {
+        Self(value)
+    }
+}

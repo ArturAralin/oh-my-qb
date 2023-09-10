@@ -35,6 +35,16 @@ impl<'a> TryIntoColumn<'a> for &'a str {
     }
 }
 
+impl<'a> TryIntoColumn<'a> for &'a &'a str {
+    fn try_into_column(self) -> Result<Column<'a>, ()> {
+        Ok(Column {
+            arg: (*self).try_into_arg().unwrap(),
+            alias: None,
+        })
+    }
+}
+
+
 impl<'a> TryIntoColumn<'a> for SelectQuery<'a> {
     fn try_into_column(self) -> Result<Column<'a>, ()> {
         Ok(Column {

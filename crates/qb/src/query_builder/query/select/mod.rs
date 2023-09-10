@@ -24,7 +24,7 @@ pub struct SelectQuery<'a> {
 }
 
 impl<'a> SelectQuery<'a> {
-    pub fn columns(&mut self, columns: Vec<impl column::TryIntoColumn<'a>>) -> &mut Self {
+    pub fn columns(&mut self, columns: impl IntoIterator<Item = impl column::TryIntoColumn<'a>>) -> &mut Self {
         // todo: rework to extend?
         self.columns = Some(
             columns

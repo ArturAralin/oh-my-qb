@@ -1,7 +1,7 @@
 pub mod postgres;
 use crate::query_builder::{
-    select::join::Join, Arg, ArgValue, ConditionOp, DeleteQuery, GroupedWhereCondition,
-    InsertQuery, Raw, SelectQuery, SingleWhereCondition, SqlKeyword, UpdateQuery, Value,
+    raw::Raw, select::join::Join, Arg, ArgValue, ConditionOp, DeleteQuery, GroupedWhereCondition,
+    InsertQuery, InsertType, SelectQuery, SingleWhereCondition, SqlKeyword, UpdateQuery, Value,
     WhereCondition,
 };
 
@@ -204,15 +204,15 @@ pub trait SqlDialect<'a> {
         self.build_where(&qb.where_clause, 0);
     }
 
-    fn build_insert(&mut self, qb: &'a InsertQuery<'a>) {
+    fn build_insert(&mut self, insert: &'a InsertQuery<'a>) {
         self.write_str("insert");
 
-        if let Some(table) = &qb.table {
+        if let Some(table) = &insert.table {
             self.write_str(" into ");
             self.write_relation(table);
         }
 
-        if let Some(ordered_columns) = &qb.ordered_columns {
+        if let Some(ordered_columns) = &insert.ordered_columns {
             self.write_char(' ');
             self.write_char('(');
 
@@ -231,39 +231,49 @@ pub trait SqlDialect<'a> {
             self.write_char(')');
         }
 
-        if !qb.bindings.is_empty() {
-            self.write_str(" values ");
+        let columns_count = insert
+            .ordered_columns
+            .as_ref()
+            .map(|columns| columns.len())
+            .unwrap_or(0);
 
-            let mut binding_idx: usize = 1;
-
-            for (tuple_idx, values) in qb
-                .bindings
-                .chunks(qb.ordered_columns.map(|columns| columns.len()).unwrap_or(0))
-                .enumerate()
-            {
-                if tuple_idx > 0 {
-                    self.write_char(',');
-                    self.write_char(' ');
-                }
-
-                self.write_char('(');
-
-                for (idx, _) in values.iter().enumerate() {
-                    if idx > 0 {
-                        self.write_char(',');
-                        self.write_char(' ');
-                    }
-
-                    self.write_char('$');
-                    self.write_str(binding_idx.to_string());
-                    binding_idx += 1;
-                }
-
-                self.write_char(')');
+        match &insert.inner {
+            InsertType::FromSubQuery(insert) => {
+                self.write_char(' ');
+                self.build_select(&insert.sub_query.0);
             }
-        }
+            InsertType::WithValues(insert) => {
+                if !insert.bindings.is_empty() {
+                    self.write_str(" values ");
 
-        self.extend_bindings(&qb.bindings);
+                    let mut binding_idx: usize = 1;
+
+                    for (tuple_idx, values) in insert.bindings.chunks(columns_count).enumerate() {
+                        if tuple_idx > 0 {
+                            self.write_char(',');
+                            self.write_char(' ');
+                        }
+
+                        self.write_char('(');
+
+                        for (idx, _) in values.iter().enumerate() {
+                            if idx > 0 {
+                                self.write_char(',');
+                                self.write_char(' ');
+                            }
+
+                            self.write_char('$');
+                            self.write_str(binding_idx.to_string());
+                            binding_idx += 1;
+                        }
+
+                        self.write_char(')');
+                    }
+                }
+
+                self.extend_bindings(&insert.bindings);
+            }
+        };
     }
 
     fn build_where(&mut self, where_conditions: &'a [WhereCondition<'a>], depth: usize) {
@@ -684,6 +694,20 @@ mod test {
             r#"insert into "my_tbl" ("a", "b", "c", "f", "d") values ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10), ($11, $12, $13, $14, $15), ($16, $17, $18, $19, $20)"#
         );
         assert_eq!(sql.bindings.len(), 20);
+    }
+
+    #[test]
+    fn insert_from_sub_query() {
+        let columns = &["a", "b", "c"];
+        let mut sub_query = QueryBuilder::select();
+        sub_query.columns(columns);
+        sub_query.from("tbl");
+
+        let mut insert_qb = QueryBuilder::insert();
+        let sql =  insert_qb.into_("another_tbl").columns(columns).from_sub_query(sub_query).sql::<TestDialect>();
+
+        assert_eq!(sql.sql, r#"insert into "another_tbl" ("a", "b", "c") select "a", "b", "c" from "tbl""#);
+        assert!(sql.bindings.is_empty());
     }
 
     #[test]
