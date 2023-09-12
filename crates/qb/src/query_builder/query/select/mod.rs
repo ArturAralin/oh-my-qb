@@ -24,7 +24,10 @@ pub struct SelectQuery<'a> {
 }
 
 impl<'a> SelectQuery<'a> {
-    pub fn columns(&mut self, columns: impl IntoIterator<Item = impl column::TryIntoColumn<'a>>) -> &mut Self {
+    pub fn columns(
+        &mut self,
+        columns: impl IntoIterator<Item = impl column::TryIntoColumn<'a>>,
+    ) -> &mut Self {
         self.columns = Some(
             columns
                 .into_iter()
@@ -35,7 +38,21 @@ impl<'a> SelectQuery<'a> {
         self
     }
 
-    // todo: add extend_columns
+    pub fn extend_columns(
+        &mut self,
+        new_columns: impl IntoIterator<Item = impl column::TryIntoColumn<'a>>,
+    ) -> &mut Self {
+        let columns_iter = new_columns
+            .into_iter()
+            .map(|column| column.try_into_column().unwrap());
+        if let Some(columns) = &mut self.columns {
+            columns.extend(columns_iter);
+        } else {
+            self.columns = Some(columns_iter.collect());
+        }
+
+        self
+    }
 
     pub fn push_column(&mut self, column: impl column::TryIntoColumn<'a>) -> &mut Self {
         if let Some(columns) = &mut self.columns {
@@ -195,3 +212,56 @@ impl<'a> PushCondition<'a> for SelectQuery<'a> {
 }
 
 impl<'a> Conditions<'a> for SelectQuery<'a> {}
+
+#[cfg(test)]
+mod test {
+    use super::SelectQuery;
+    use crate::query_builder::Arg;
+
+    fn compare_columns(qb: &SelectQuery, expected_columns: &[&str]) {
+        let columns = qb
+            .columns
+            .as_ref()
+            .map(|columns| {
+                columns
+                    .iter()
+                    .map(|column| match &column.arg {
+                        Arg::Relation(r) => &r.0,
+                        _ => panic!("not relation"),
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap();
+
+        assert_eq!(columns, expected_columns);
+    }
+
+    #[test]
+    fn columns() {
+        let mut qb = SelectQuery::default();
+        qb.columns(["column0"]);
+
+        compare_columns(&qb, &["column0"]);
+
+        qb.columns(["column1"]);
+
+        compare_columns(&qb, &["column1"]);
+
+        qb.extend_columns(["column2", "column3"]);
+
+        compare_columns(&qb, &["column1", "column2", "column3"]);
+
+        qb.push_column("column4");
+
+        compare_columns(&qb, &["column1", "column2", "column3", "column4"]);
+
+        let dynamic_column = format!("column{}", 5);
+
+        qb.push_column(&dynamic_column);
+
+        compare_columns(
+            &qb,
+            &["column1", "column2", "column3", "column4", "column5"],
+        );
+    }
+}
