@@ -25,7 +25,6 @@ pub struct SelectQuery<'a> {
 
 impl<'a> SelectQuery<'a> {
     pub fn columns(&mut self, columns: impl IntoIterator<Item = impl column::TryIntoColumn<'a>>) -> &mut Self {
-        // todo: rework to extend?
         self.columns = Some(
             columns
                 .into_iter()
@@ -35,6 +34,8 @@ impl<'a> SelectQuery<'a> {
 
         self
     }
+
+    // todo: add extend_columns
 
     pub fn push_column(&mut self, column: impl column::TryIntoColumn<'a>) -> &mut Self {
         if let Some(columns) = &mut self.columns {

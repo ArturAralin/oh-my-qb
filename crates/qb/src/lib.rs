@@ -1,3 +1,4 @@
+mod macros;
 pub mod error;
 pub mod prelude;
 mod query_builder;
@@ -8,12 +9,20 @@ pub use query_builder::select::column::ColumnExt;
 pub use query_builder::Conditions;
 pub use query_builder::QueryBuilder;
 pub use query_builder::ValueExt;
+pub use unnamed_qb_macro::Row;
 
-// fn test() {
-//     // scope(QueryBuilder::select, |select| {
-//     //   select.columns(columns)
-//     // })
+#[macro_export]
+macro_rules! qb {
+  { $q:ident($($ia:expr),*) $(.$f:ident( $( $a:expr ),* ))* } => {
+    {
+      #[allow(unused)]
+      let mut qb = QueryBuilder::$q($($ia)*);
 
-//     // select!().columns();
-//     // update!(row)
-// }
+      $(
+        qb.$f($($a),*);
+      )*
+
+      qb
+    }
+  }
+}

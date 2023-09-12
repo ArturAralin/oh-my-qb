@@ -6,15 +6,17 @@ Query builder inspired by Knex.js.
 
 ## select
 ```rust
-let mut qb = QueryBuilder::select();
-let result = qb
+let qb = qb!{
+  select()
   .columns(&[
     "table.column1",
     "table.column2"
   ])
   .from("table")
   .and_where("table.id", "=", 10.value())
-  .sql::<PostgresSqlDialect>();
+};
+
+let result = qb.sql::<PostgresSqlDialect>();
 
 result.sql // select "table"."column1", "table"."column2" from "table" where "table"."id" = $1
 result.bindings // [Integer(10)]
