@@ -11,6 +11,7 @@ pub struct Column<'a> {
 
 pub trait ColumnExt<'a> {
     fn alias(self, alias: &'a str) -> Column<'a>;
+    fn as_(self, alias: &'a str) -> Column<'a>;
 }
 
 impl<'a> ColumnExt<'a> for &'a str {
@@ -19,6 +20,10 @@ impl<'a> ColumnExt<'a> for &'a str {
             arg: Arg::Relation(Relation(Cow::Borrowed(self))),
             alias: Some(Cow::Borrowed(alias)),
         }
+    }
+
+    fn as_(self, alias: &'a str) -> Column<'a> {
+        Self::alias(self, alias)
     }
 }
 

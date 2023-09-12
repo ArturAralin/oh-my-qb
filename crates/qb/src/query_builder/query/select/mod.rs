@@ -216,7 +216,7 @@ impl<'a> Conditions<'a> for SelectQuery<'a> {}
 #[cfg(test)]
 mod test {
     use super::SelectQuery;
-    use crate::query_builder::Arg;
+    use crate::{query_builder::Arg, ColumnExt};
 
     fn compare_columns(qb: &SelectQuery, expected_columns: &[&str]) {
         let columns = qb
@@ -263,5 +263,22 @@ mod test {
             &qb,
             &["column1", "column2", "column3", "column4", "column5"],
         );
+    }
+
+    #[test]
+    fn alias() {
+        let mut qb = SelectQuery::default();
+        qb.push_column("column".alias("another_name"));
+
+        let column = &qb.columns.as_ref().unwrap()[0];
+
+        match &column.arg {
+            Arg::Relation(r) => assert_eq!(r.0, "column"),
+            _ => {
+                assert!(false)
+            }
+        };
+
+        assert_eq!(column.alias, Some(std::borrow::Cow::Borrowed("another_name")));
     }
 }

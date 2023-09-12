@@ -13,13 +13,14 @@ let qb = qb!{
     "table.column2"
   ])
   .from("table")
-  .and_where("table.id", "=", 10.value())
+  .and_where("table.id", ">", 10.value())
+  .limit(1);
 };
 
 let result = qb.sql::<PostgresSqlDialect>();
 
-result.sql // select "table"."column1", "table"."column2" from "table" where "table"."id" = $1
-result.bindings // [Integer(10)]
+result.sql // select "table"."column1", "table"."column2" from "table" where "table"."id" > $1 limit $2
+result.bindings // [Integer(10), Integer(1)]
 ```
 
 ## sub query
